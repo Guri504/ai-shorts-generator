@@ -18,10 +18,10 @@ export const stockVideoService = {
     const cacheKey = `stock_clip_${cleanKeyword.replace(/\s+/g, '_')}`;
     
     // 1. Check local cache
-    const cachedItem = dbService.getCache(cacheKey);
-    if (cachedItem && fs.existsSync(cachedItem.value.filePath)) {
-      console.log(`[Stock Video] Cache hit for keyword: "${keyword}". Reusing: ${cachedItem.value.filePath}`);
-      fs.copyFileSync(cachedItem.value.filePath, outputPath);
+    const cachedItem = await dbService.getCache(cacheKey);
+    if (cachedItem && fs.existsSync(cachedItem.filePath)) {
+      console.log(`[Stock Video] Cache hit for keyword: "${keyword}". Reusing: ${cachedItem.filePath}`);
+      fs.copyFileSync(cachedItem.filePath, outputPath);
       return outputPath;
     }
 
@@ -72,7 +72,7 @@ export const stockVideoService = {
             // Save to cache
             const cachePath = path.join(env.paths.cache, `pexels_${video.id}.mp4`);
             fs.copyFileSync(outputPath, cachePath);
-            dbService.setCache(cacheKey, { filePath: cachePath, keyword });
+            await dbService.setCache(cacheKey, { filePath: cachePath, keyword });
             
             return outputPath;
           }
@@ -99,7 +99,7 @@ export const stockVideoService = {
             
             const cachePath = path.join(env.paths.cache, `pixabay_${video.id}.mp4`);
             fs.copyFileSync(outputPath, cachePath);
-            dbService.setCache(cacheKey, { filePath: cachePath, keyword });
+            await dbService.setCache(cacheKey, { filePath: cachePath, keyword });
             
             return outputPath;
           }
@@ -109,8 +109,20 @@ export const stockVideoService = {
       }
     }
 
-    // 4. Fail-safe: Generate dynamic gradient/solid video using FFmpeg
-    console.log(`[Stock Video] No API key or video found. Generating high-quality animated placeholder using FFmpeg for: "${keyword}"`);
+    // 4. Fail-safe: Re-use prebuilt vertical background clips instead of generating static color videos
+    console.log(`[Stock Video] No API key or video found. Reusing prebuilt local background for: "${keyword}"`);
+    try {
+      const bgs = ['bg_space.mp4', 'bg_cyber.mp4', 'bg_ambient.mp4', 'bg_lava.mp4', 'bg_matrix.mp4'];
+      const randomBg = bgs[Math.floor(Math.random() * bgs.length)];
+      const localBgPath = path.join(env.paths.backgrounds, randomBg);
+      if (fs.existsSync(localBgPath)) {
+        fs.copyFileSync(localBgPath, outputPath);
+        return outputPath;
+      }
+    } catch (e) {
+      console.warn(`[Stock Video] Local background copy failed: ${e.message}`);
+    }
+
     await this.generatePlaceholderVideo(keyword, outputPath, duration);
     return outputPath;
   },

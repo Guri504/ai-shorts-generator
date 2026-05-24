@@ -1,98 +1,135 @@
-import fs from 'fs';
-import path from 'path';
+import mongoose from 'mongoose';
 import { env } from '../config/env.js';
+import Project from '../models/Project.js';
 
-const DB_FILE = path.join(env.paths.storage, 'db.json');
+// Cache schema and model definition
+const CacheSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  value: mongoose.Schema.Types.Mixed,
+  timestamp: { type: Date, default: Date.now }
+});
 
-// Initialize database file if it doesn't exist
-function initDb() {
-  if (!fs.existsSync(DB_FILE)) {
-    const defaultData = {
-      projects: [],
-      cache: {}
-    };
-    fs.writeFileSync(DB_FILE, JSON.stringify(defaultData, null, 2), 'utf-8');
-  }
-}
+const Cache = mongoose.models.Cache || mongoose.model('Cache', CacheSchema);
 
-// Read database contents
-function readDb() {
+// Connection Status log
+let dbConnected = false;
+
+// Connect to MongoDB
+export const connectDb = async () => {
+  if (dbConnected) return;
   try {
-    initDb();
-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch (error) {
-    console.error('Error reading database file, resetting:', error);
-    const defaultData = { projects: [], cache: {} };
-    fs.writeFileSync(DB_FILE, JSON.stringify(defaultData, null, 2), 'utf-8');
-    return defaultData;
+    const mongoUri = env.MONGODB_URI;
+    console.log(`[DB Service] Connecting to MongoDB: ${mongoUri.replace(/:([^:@]+)@/, ':****@')}`);
+    
+    await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 5000
+    });
+    
+    dbConnected = true;
+    console.log('[DB Service] Successfully connected to MongoDB database.');
+  } catch (err) {
+    console.error('[DB Service] MongoDB connection failed:', err.message);
+    console.warn('[DB Service] Warning: App running without active database. Ensure MongoDB is running on port 27017.');
   }
-}
-
-// Write database contents
-function writeDb(data) {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
-    return true;
-  } catch (error) {
-    console.error('Error writing to database file:', error);
-    return false;
-  }
-}
+};
 
 export const dbService = {
-  // Get all projects
-  getProjects() {
-    const db = readDb();
-    return db.projects || [];
+  // Get all projects for a specific user
+  async getProjects(userId) {
+    await connectDb();
+    if (!userId) return [];
+    try {
+      return await Project.find({ userId }).sort({ updatedAt: -1 }).lean();
+    } catch (err) {
+      console.error('[DB Service] getProjects failed:', err);
+      return [];
+    }
   },
 
   // Get project by ID
-  getProject(id) {
-    const db = readDb();
-    return db.projects.find((p) => p.id === id) || null;
+  async getProject(id) {
+    await connectDb();
+    try {
+      const proj = await Project.findOne({ id });
+      return proj;
+    } catch (err) {
+      console.error('[DB Service] getProject failed:', err);
+      return null;
+    }
   },
 
   // Save/Update project
-  saveProject(project) {
-    const db = readDb();
-    const index = db.projects.findIndex((p) => p.id === project.id);
-    
-    project.updatedAt = new Date().toISOString();
-    
-    if (index !== -1) {
-      db.projects[index] = { ...db.projects[index], ...project };
-    } else {
-      project.createdAt = new Date().toISOString();
-      db.projects.push(project);
+  async saveProject(projectData, userId) {
+    await connectDb();
+    try {
+      const id = projectData.id;
+      
+      // If we are passing a full Mongoose Document, just save it
+      if (projectData && typeof projectData.save === 'function') {
+        return await projectData.save();
+      }
+
+      // Otherwise upsert projectData
+      const updatePayload = { ...projectData };
+      if (userId) {
+        updatePayload.userId = userId;
+      }
+
+      // Check if project exists
+      const existing = await Project.findOne({ id });
+      if (existing) {
+        Object.assign(existing, updatePayload);
+        return await existing.save();
+      } else {
+        if (!updatePayload.userId) {
+          throw new Error('[DB Service] Cannot create project: userId is missing');
+        }
+        const newProj = new Project(updatePayload);
+        return await newProj.save();
+      }
+    } catch (err) {
+      console.error('[DB Service] saveProject failed:', err);
+      throw err;
     }
-    
-    writeDb(db);
-    return project;
   },
 
   // Delete project
-  deleteProject(id) {
-    const db = readDb();
-    db.projects = db.projects.filter((p) => p.id !== id);
-    writeDb(db);
-    return true;
+  async deleteProject(id) {
+    await connectDb();
+    try {
+      await Project.deleteOne({ id });
+      return true;
+    } catch (err) {
+      console.error('[DB Service] deleteProject failed:', err);
+      return false;
+    }
   },
 
   // Cache Management
-  getCache(key) {
-    const db = readDb();
-    return db.cache[key] || null;
+  async getCache(key) {
+    await connectDb();
+    try {
+      const item = await Cache.findOne({ key });
+      return item ? item.value : null;
+    } catch (err) {
+      console.error('[DB Service] getCache failed:', err);
+      return null;
+    }
   },
 
-  setCache(key, value) {
-    const db = readDb();
-    db.cache[key] = {
-      value,
-      timestamp: new Date().toISOString()
-    };
-    writeDb(db);
-    return true;
+  async setCache(key, value) {
+    await connectDb();
+    try {
+      await Cache.findOneAndUpdate(
+        { key },
+        { value, timestamp: new Date() },
+        { upsert: true, returnDocument: 'after' }
+      );
+      return true;
+    } catch (err) {
+      console.error('[DB Service] setCache failed:', err);
+      return false;
+    }
   }
 };
 

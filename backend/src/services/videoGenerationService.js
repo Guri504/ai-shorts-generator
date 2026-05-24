@@ -36,33 +36,58 @@ export const videoGenerationService = {
     const tempImageName = `ai_temp_${Date.now()}.jpg`;
     const tempImagePath = path.join(env.paths.cache, tempImageName);
 
+    // Strategy 1: Pollinations AI
     try {
-      // Strategy 1: Pollinations AI image generation (free, unlimited)
       await pollinationsService.generateImage(visualPrompt, tempImagePath);
-
-      // Convert the AI image to a cinematic zoom/pan video
       await this.convertImageToZoomVideo(tempImagePath, outputPath, duration);
-
-      // Cleanup temp image
       try { fs.unlinkSync(tempImagePath); } catch {}
-
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`[AI Clip Generator] Clip generated successfully in ${elapsed}s`);
+      console.log(`[AI Clip Generator] Clip generated via Pollinations in ${((Date.now() - startTime)/1000).toFixed(1)}s`);
       return outputPath;
     } catch (err) {
-      console.warn(`[AI Clip Generator] Pollinations failed: ${err.message}. Using animated fallback.`);
-
-      // Cleanup any partial temp file
+      console.warn(`[AI Clip Generator] Pollinations failed: ${err.message}. Trying HuggingFace FLUX...`);
       try { if (fs.existsSync(tempImagePath)) fs.unlinkSync(tempImagePath); } catch {}
     }
 
-    // Strategy 2: Animated gradient fallback
-    console.log(`[AI Clip Generator] Generating cinematic animated fallback for: "${visualPrompt.substring(0, 60)}..."`);
-    await this.generatePlaceholderVideo(visualPrompt, outputPath, duration);
+    // Strategy 2: HuggingFace FLUX
+    try {
+      await pollinationsService.generateImageViaFlux(visualPrompt, tempImagePath);
+      await this.convertImageToZoomVideo(tempImagePath, outputPath, duration);
+      try { fs.unlinkSync(tempImagePath); } catch {}
+      console.log(`[AI Clip Generator] Clip generated via HuggingFace FLUX in ${((Date.now() - startTime)/1000).toFixed(1)}s`);
+      return outputPath;
+    } catch (err) {
+      console.warn(`[AI Clip Generator] HuggingFace FLUX failed: ${err.message}. Trying local cinematic fallback...`);
+      try { if (fs.existsSync(tempImagePath)) fs.unlinkSync(tempImagePath); } catch {}
+    }
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[AI Clip Generator] Fallback clip generated in ${elapsed}s`);
-    return outputPath;
+    // Strategy 3: Local cinematic fallback background
+    try {
+      const bgs = ['bg_space.mp4', 'bg_cyber.mp4', 'bg_ambient.mp4', 'bg_lava.mp4', 'bg_matrix.mp4'];
+      const randomBg = bgs[Math.floor(Math.random() * bgs.length)];
+      const localBgPath = path.join(env.paths.backgrounds, randomBg);
+      
+      if (fs.existsSync(localBgPath)) {
+        console.log(`[AI Clip Generator] Reusing prebuilt local background: ${randomBg}`);
+        fs.copyFileSync(localBgPath, outputPath);
+        console.log(`[AI Clip Generator] Local fallback clip ready in ${Date.now() - startTime}ms.`);
+        return outputPath;
+      } else {
+        throw new Error('Local background file is missing.');
+      }
+    } catch (err) {
+      console.warn(`[AI Clip Generator] Local cinematic fallback failed: ${err.message}. Trying animated gradient fallback...`);
+    }
+
+    // Strategy 4: Animated gradient fallback
+    try {
+      console.log(`[AI Clip Generator] Generating animated gradient fallback...`);
+      await this.generatePlaceholderVideo(visualPrompt, outputPath, duration);
+      return outputPath;
+    } catch (err) {
+      console.warn(`[AI Clip Generator] Animated gradient fallback failed: ${err.message}. Using solid color...`);
+      await this._solidColorFallback(outputPath, duration);
+      return outputPath;
+    }
   },
 
   /**

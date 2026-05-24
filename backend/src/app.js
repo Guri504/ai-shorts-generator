@@ -15,13 +15,7 @@ app.use(express.json());
 // Register API Routes
 app.use('/api', apiRoutes);
 
-// Serve output vertical videos statically
-app.use('/outputs', express.static(env.paths.outputs));
-
-// Serve intermediate project folder assets statically (voice audio, video clips)
-app.use('/projects', express.static(env.paths.projects));
-
-// Serve voice preview audio tracks dynamically
+// Serve voice preview audio tracks dynamically (temporary expired assets)
 app.use('/previews', express.static(path.join(env.paths.cache, 'previews')));
 
 // Simple healthcheck endpoint

@@ -34,7 +34,7 @@ export const subtitleService = {
     // BackColour: Black (&H00000000)
     // Highlight color: Neon Yellow (&H0000FFFF) or Neon Green (&H0033FF33)
     const highlightColor = '&H0033FF33'; // BGR (Vibrant Neon Green)
-    
+
     let ass = `[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -59,21 +59,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
       const startWindow = Math.max(0, i - 1);
       const endWindow = Math.min(wordTimings.length - 1, i + 2);
-      
+
       let sentenceParts = [];
       for (let j = startWindow; j <= endWindow; j++) {
         const wt = wordTimings[j];
         if (j === i) {
-          // Highlight active word (Neon Green, Uppercase, with a scale-up bounce animation)
-          sentenceParts.push(`{\\fscx85\\fscy85\\t(0,100,\\fscx120\\fscy120)\\t(100,180,\\fscx100\\fscy100)}\\c${highlightColor}}${wt.word.toUpperCase()}{\\r}`);
+          sentenceParts.push(wt.word.toUpperCase());
         } else {
-          // Normal word (White, Uppercase)
           sentenceParts.push(wt.word.toUpperCase());
         }
       }
-      
+
       const sentenceText = sentenceParts.join(' ');
-      
+
       // Write line: Layer 0, start, end, style Default
       ass += `Dialogue: 0,${startStr},${endStr},Default,,0,0,0,,${sentenceText}\n`;
     }

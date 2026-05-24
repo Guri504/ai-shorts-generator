@@ -13,7 +13,31 @@ const getBackendUrl = () => {
 const BACKEND_URL = getBackendUrl();
 const API_URL = `${BACKEND_URL}/api`;
 
-// Keep track of active WebSocket connection globally or in store
+// Setup Request interceptor to attach JWT Token if present
+axios.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+}, (err) => {
+  return Promise.reject(err);
+});
+
+// Setup Response interceptor to handle auto logout on token expiration
+axios.interceptors.response.use((res) => res, (err) => {
+  if (err.response?.status === 401 && typeof window !== 'undefined') {
+    console.warn('[Session Monitor] Token expired or invalid. Logging out.');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    // We can refresh the window to dump states
+    window.location.reload();
+  }
+  return Promise.reject(err);
+});
+
 let activeSocket = null;
 let etaInterval = null;
 
@@ -37,10 +61,33 @@ const stopEtaTimer = () => {
   }
 };
 
+// Safe helper to get initial store value from localStorage
+const getStoredItem = (key) => {
+  if (typeof window !== 'undefined') {
+    try {
+      const val = localStorage.getItem(key);
+      if (!val) return null;
+      return key === 'user' ? JSON.parse(val) : val;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
 export const useAppStore = create((set, get) => ({
+  // Authentication State
+  user: getStoredItem('user'),
+  token: getStoredItem('token'),
+  isAuthenticated: !!getStoredItem('token'),
+  authError: null,
+  isAuthLoading: false,
+
+  // App State
   projects: [],
   currentProject: null,
-  voices: [], // List of Edge TTS voices
+  voices: [], 
+  youtubeAccounts: [],
   settings: {
     hasGeminiKey: false,
     hasPexelsKey: false,
@@ -61,17 +108,69 @@ export const useAppStore = create((set, get) => ({
   isLoadingProjects: false,
   isGeneratingScript: false,
   isRenderingVideo: false,
+  isUploadingYouTube: false,
   
   // UI routing/navigation tab
-  activeTab: 'dashboard', // dashboard, generator, editor, settings
+  activeTab: 'dashboard', // auth, dashboard, generator, editor, settings, merge-clips, replace-audio, trim-audio
   
   // Navigation action
   setActiveTab: (tab) => set({ activeTab: tab }),
 
+  // User Authentication Actions
+  signup: async (email, password, name) => {
+    set({ isAuthLoading: true, authError: null });
+    try {
+      const res = await axios.post(`${API_URL}/auth/signup`, { email, password, name });
+      const { token, user } = res.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      set({ token, user, isAuthenticated: true, activeTab: 'dashboard' });
+      return { success: true };
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message;
+      set({ authError: msg });
+      return { success: false, error: msg };
+    } finally {
+      set({ isAuthLoading: false });
+    }
+  },
+
+  login: async (email, password) => {
+    set({ isAuthLoading: true, authError: null });
+    try {
+      const res = await axios.post(`${API_URL}/auth/login`, { email, password });
+      const { token, user } = res.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      set({ token, user, isAuthenticated: true, activeTab: 'dashboard' });
+      return { success: true };
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message;
+      set({ authError: msg });
+      return { success: false, error: msg };
+    } finally {
+      set({ isAuthLoading: false });
+    }
+  },
+
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    get().disconnectLogsWebSocket();
+    set({
+      token: null,
+      user: null,
+      isAuthenticated: false,
+      projects: [],
+      currentProject: null,
+      youtubeAccounts: [],
+      activeTab: 'dashboard'
+    });
+  },
+
   // Set selected project
   setCurrentProject: (project) => {
     set({ currentProject: project });
-    // Reset logs and states when changing selected project
     if (project) {
       set({
         renderLogs: [],
@@ -87,7 +186,6 @@ export const useAppStore = create((set, get) => ({
         stopEtaTimer();
       }
 
-      // Auto connect WebSocket if project is currently active
       if (project.status === 'rendering' || project.status === 'queued') {
         get().connectLogsWebSocket(project.id);
       } else {
@@ -99,8 +197,9 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
-  // Fetch all projects from backend
+  // Fetch all projects for logged-in user
   fetchProjects: async () => {
+    if (!get().isAuthenticated) return;
     set({ isLoadingProjects: true });
     try {
       const res = await axios.get(`${API_URL}/projects`);
@@ -119,7 +218,6 @@ export const useAppStore = create((set, get) => ({
             startEtaTimer(set, get);
           }
           
-          // Connect WebSocket if project status changed to rendering/queued externally
           if ((updatedCurrent.status === 'rendering' || updatedCurrent.status === 'queued') && !activeSocket) {
             get().connectLogsWebSocket(updatedCurrent.id);
           }
@@ -134,6 +232,7 @@ export const useAppStore = create((set, get) => ({
 
   // Fetch settings status
   fetchSettings: async () => {
+    if (!get().isAuthenticated) return;
     set({ isLoadingSettings: true });
     try {
       const res = await axios.get(`${API_URL}/settings`);
@@ -157,17 +256,24 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
-  // Create project & generate script (Phase 1)
+  // Create project & generate script
   createProject: async (formData) => {
     set({ isGeneratingScript: true });
     try {
       const res = await axios.post(`${API_URL}/projects`, formData);
       const newProject = res.data;
       
+      // Update credit balance if not in unlimited mode
+      if (get().user && get().user.credits <= 9999) {
+        const updatedUser = { ...get().user, credits: Math.max(0, get().user.credits - 1) };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        set({ user: updatedUser });
+      }
+
       set((state) => ({
         projects: [newProject, ...state.projects],
         currentProject: newProject,
-        activeTab: 'editor' // Redirect directly to scene editor
+        activeTab: 'editor' 
       }));
       
       return { success: true, project: newProject };
@@ -179,7 +285,7 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
-  // Save edits to script/scenes before rendering
+  // Save edits to script/scenes
   saveProjectEdits: async (projectId, updatedData) => {
     try {
       const res = await axios.put(`${API_URL}/projects/${projectId}`, updatedData);
@@ -237,16 +343,22 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
-  // Trigger video render (Phase 2 - supports full and voice_only modes)
+  // Trigger video render
   renderProject: async (projectId, options = {}) => {
     try {
       set({ renderLogs: [] });
-      await axios.post(`${API_URL}/projects/${projectId}/render`, options);
+      const res = await axios.post(`${API_URL}/projects/${projectId}/render`, options);
       
+      // Update credits from response
+      if (get().user && res.data.remainingCredits !== undefined) {
+        const updatedUser = { ...get().user, credits: res.data.remainingCredits };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        set({ user: updatedUser });
+      }
+
       const isVoiceOnly = options.renderType === 'voice_only';
       const statusMsg = isVoiceOnly ? 'Added to voice-only render queue...' : 'Added to render queue...';
 
-      // Update local states
       set((state) => {
         const updatedProjects = state.projects.map(p => {
           if (p.id === projectId) {
@@ -262,7 +374,6 @@ export const useAppStore = create((set, get) => ({
         return { projects: updatedProjects, currentProject: updatedCurrent };
       });
 
-      // Connect real-time WS connection
       get().connectLogsWebSocket(projectId);
       return { success: true };
     } catch (err) {
@@ -324,7 +435,6 @@ export const useAppStore = create((set, get) => ({
       await axios.post(`${API_URL}/projects/${projectId}/cancel`);
       stopEtaTimer();
       
-      // Update local states: revert to draft
       set((state) => {
         const updatedProjects = state.projects.map(p => {
           if (p.id === projectId) {
@@ -365,6 +475,102 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
+  // YouTube Channel Connection Operations
+  fetchYouTubeAccounts: async () => {
+    if (!get().isAuthenticated) return;
+    try {
+      const res = await axios.get(`${API_URL}/youtube/accounts`);
+      set({ youtubeAccounts: res.data });
+    } catch (err) {
+      console.error('Error fetching YouTube accounts:', err);
+    }
+  },
+
+  connectYouTube: async () => {
+    try {
+      const res = await axios.get(`${API_URL}/youtube/auth`);
+      const authUrl = res.data.url;
+      if (authUrl) {
+        // Open authorization window
+        const width = 600, height = 700;
+        const left = (window.innerWidth - width) / 2;
+        const top = (window.innerHeight - height) / 2;
+        const win = window.open(
+          authUrl,
+          'Connect YouTube Channel',
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+
+        // Monitor if authentication window is closed
+        const timer = setInterval(() => {
+          if (win.closed) {
+            clearInterval(timer);
+            // Refresh list
+            get().fetchYouTubeAccounts();
+          }
+        }, 1000);
+      }
+    } catch (err) {
+      console.error('Error initiating YouTube OAuth:', err);
+    }
+  },
+
+  uploadToYouTube: async (projectId, youtubeAccountId, privacyStatus = 'public', uploadType = 'short') => {
+    set({ isUploadingYouTube: true });
+    
+    // Connect to WebSocket to receive real-time progress events
+    get().connectLogsWebSocket(projectId);
+    
+    try {
+      const res = await axios.post(`${API_URL}/projects/${projectId}/youtube-upload`, { 
+        youtubeAccountId,
+        privacyStatus,
+        uploadType
+      });
+      
+      // Fetch updated project schema to populate youtubeUpload success state
+      const resProj = await axios.get(`${API_URL}/projects/${projectId}`);
+      set((state) => {
+        const updatedProjects = state.projects.map(p => p.id === projectId ? resProj.data : p);
+        return { 
+          projects: updatedProjects, 
+          currentProject: state.currentProject?.id === projectId ? resProj.data : state.currentProject,
+          isUploadingYouTube: false 
+        };
+      });
+
+      // Keep WebSocket open a bit then disconnect
+      setTimeout(() => {
+        get().disconnectLogsWebSocket();
+      }, 2000);
+
+      return { success: true, message: res.data.message };
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || err.message;
+      
+      // Fetch project state again to capture upload failure details
+      try {
+        const resProj = await axios.get(`${API_URL}/projects/${projectId}`);
+        set((state) => {
+          const updatedProjects = state.projects.map(p => p.id === projectId ? resProj.data : p);
+          return { 
+            projects: updatedProjects, 
+            currentProject: state.currentProject?.id === projectId ? resProj.data : state.currentProject
+          };
+        });
+      } catch (fetchErr) {
+        console.error('Error fetching project after upload failure:', fetchErr);
+      }
+
+      set({ isUploadingYouTube: false });
+      setTimeout(() => {
+        get().disconnectLogsWebSocket();
+      }, 1000);
+
+      return { success: false, error: errorMsg };
+    }
+  },
+
   // Real-time WebSocket connection to backend logs channel
   connectLogsWebSocket: (projectId) => {
     get().disconnectLogsWebSocket();
@@ -384,6 +590,40 @@ export const useAppStore = create((set, get) => ({
     });
 
     socket.on('log', (data) => {
+      // Intercept upload stage logs to update youtubeUpload state in the store directly!
+      if (data.currentStage === 'uploading') {
+        set((state) => {
+          const current = state.currentProject;
+          const updatedCurrent = current?.id === projectId
+            ? {
+                ...current,
+                youtubeUpload: {
+                  ...current.youtubeUpload,
+                  status: 'uploading',
+                  progress: data.progress,
+                  message: data.message
+                }
+              }
+            : current;
+          const updatedProjects = state.projects.map(p => {
+            if (p.id === projectId) {
+              return {
+                ...p,
+                youtubeUpload: {
+                  ...p.youtubeUpload,
+                  status: 'uploading',
+                  progress: data.progress,
+                  message: data.message
+                }
+              };
+            }
+            return p;
+          });
+          return { projects: updatedProjects, currentProject: updatedCurrent };
+        });
+        return;
+      }
+
       // Append log to list
       set((state) => ({
         renderLogs: [...state.renderLogs, { text: data.message, time: data.timestamp, stage: data.currentStage }],
@@ -427,7 +667,7 @@ export const useAppStore = create((set, get) => ({
       // Disconnect on completion or error
       if (data.currentStage === 'complete' || data.currentStage === 'failed') {
         stopEtaTimer();
-        get().fetchProjects(); // Refresh final assets (like output path, duration, thumbnails)
+        get().fetchProjects(); 
         setTimeout(() => get().disconnectLogsWebSocket(), 1000);
       }
     });

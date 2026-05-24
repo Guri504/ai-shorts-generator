@@ -3,10 +3,36 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { Card, Button, InputGroup, Link, Alert } from '@heroui/react';
-import { Key, Eye, EyeOff, Save, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react';
+import { Key, Eye, EyeOff, Save, CheckCircle2, AlertCircle, HelpCircle, Plus } from 'lucide-react';
+
+const Youtube = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
+    <path d="m10 15 5-3-5-3z" fill="currentColor" />
+  </svg>
+);
 
 export default function Settings() {
-  const { settings, isLoadingSettings, fetchSettings, saveSettings } = useAppStore();
+  const { 
+    settings, 
+    isLoadingSettings, 
+    fetchSettings, 
+    saveSettings,
+    youtubeAccounts,
+    connectYouTube,
+    fetchYouTubeAccounts
+  } = useAppStore();
   
   const [geminiKey, setGeminiKey] = useState('');
   const [pexelsKey, setPexelsKey] = useState('');
@@ -22,7 +48,8 @@ export default function Settings() {
 
   useEffect(() => {
     fetchSettings();
-  }, [fetchSettings]);
+    fetchYouTubeAccounts();
+  }, [fetchSettings, fetchYouTubeAccounts]);
 
   useEffect(() => {
     if (settings?.env) {
@@ -228,7 +255,7 @@ export default function Settings() {
         )}
 
         {/* Submit Actions */}
-        <div className="flex justify-end pt-4">
+        <div className="flex justify-end pt-2">
           <Button 
             type="submit" 
             color="secondary" 
@@ -236,10 +263,61 @@ export default function Settings() {
             className="px-6 py-4 font-bold flex items-center gap-2 shadow-lg shadow-violet-500/20 bg-violet-600 hover:bg-violet-700"
           >
             {!isSaving && <Save size={18} />}
-            Save Settings
+            Save API Settings
           </Button>
         </div>
       </form>
+
+      {/* YouTube Accounts Section */}
+      <div className="mt-12 space-y-6">
+        <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2">
+          <Youtube className="text-red-500 h-7 w-7" />
+          YouTube Integrations
+        </h2>
+        <p className="text-slate-400 text-sm">
+          Connect your YouTube channels to enable one-click publishing of your rendered vertical short videos.
+        </p>
+
+        <Card className="glow-card border-none bg-slate-950/60 p-4">
+          <Card.Header className="flex justify-between items-center p-0 pb-4">
+            <span className="font-bold text-base">Connected Channels</span>
+            <Button
+              size="sm"
+              color="danger"
+              onClick={connectYouTube}
+              className="bg-red-600 hover:bg-red-700 font-bold flex items-center gap-1.5 rounded-lg px-4"
+            >
+              <Plus size={14} /> Link New Channel
+            </Button>
+          </Card.Header>
+          <Card.Content className="p-0 space-y-3">
+            {youtubeAccounts.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+                No YouTube channels linked to this account. Link a channel to get started.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {youtubeAccounts.map((acc) => (
+                  <div key={acc._id || acc.channelId} className="flex items-center justify-between p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="h-10 w-10 bg-red-600/10 text-red-500 rounded-lg flex items-center justify-center font-bold">
+                        📺
+                      </div>
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="font-bold text-sm text-slate-200 truncate">{acc.channelName}</span>
+                        <span className="text-[10px] text-slate-500 truncate">{acc.email}</span>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-950 text-green-400 border border-green-900/30">
+                      Connected
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card.Content>
+        </Card>
+      </div>
     </div>
   );
 }

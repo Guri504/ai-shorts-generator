@@ -10,10 +10,42 @@ import { ffmpegService } from './ffmpegService.js';
 import { wsManager } from '../utils/wsManager.js';
 import { processRegistry } from '../utils/processRegistry.js';
 import { ctaService } from './ctaService.js';
+import { storageHelper } from '../utils/storageHelper.js';
 
-let queue = [];
-let isProcessing = false;
-let activeProjectId = null;
+// Helper to copy prebuilt CTA video clip or retrieve clip based on type
+const ensureSceneVideoClip = async (project, scene, clipPath, duration, isCta) => {
+  if (isCta) {
+    const style = project.ctaSettings?.style || 'auto';
+    let resolvedStyle = style.toLowerCase();
+    if (resolvedStyle === 'auto') {
+      resolvedStyle = ctaService.detectStyle(project.topic, project.bgMusicGenre || project.musicGenre);
+    }
+    
+    let filename = 'minimal_tech.mp4';
+    if (resolvedStyle === 'horror') filename = 'horror_suspense.mp4';
+    else if (resolvedStyle === 'ai') filename = 'ai_futuristic.mp4';
+    else if (resolvedStyle === 'tech') filename = 'cyberpunk.mp4';
+    else if (resolvedStyle === 'motivation') filename = 'dark_neon.mp4';
+
+    const prebuiltPath = path.join(env.paths.cta, filename);
+    if (fs.existsSync(prebuiltPath)) {
+      console.log(`[Queue Manager] Copying prebuilt CTA video: ${filename}`);
+      fs.copyFileSync(prebuiltPath, clipPath);
+    } else {
+      console.warn(`[Queue Manager] Prebuilt CTA ${filename} not found, generating fallback.`);
+      await videoGenerationService.generatePlaceholderVideo('CTA', clipPath, duration);
+    }
+  } else if (scene.clipType === 'Stock') {
+    await stockVideoService.getClip(scene.stockSearchKeyword, clipPath, duration);
+  } else {
+    await videoGenerationService.generateClip(scene.visualPrompt, clipPath, duration);
+  }
+};
+
+// Multi-tenant scheduling queue
+let queue = []; // Array of jobs: { projectId, type, userId, sceneNumber, regenerateType }
+let activeJobs = new Map(); // userId -> active job object
+const MAX_GLOBAL_CONCURRENCY = 2; // Max 2 parallel video renders globally
 
 // Helper to calculate render ETA in seconds
 function calculateETA(project, isSingleScene = false, singleSceneNumber = null, singleRegenerateType = 'all', isVoiceOnly = false) {
@@ -79,8 +111,8 @@ export const queueService = {
    * @param {string} projectId 
    * @param {Object} options 
    */
-  enqueue(projectId, options = {}) {
-    const project = dbService.getProject(projectId);
+  async enqueue(projectId, options = {}) {
+    const project = await dbService.getProject(projectId);
     if (!project) return false;
 
     const renderType = options.renderType || 'full';
@@ -92,7 +124,7 @@ export const queueService = {
     // Calculate queue ETA including jobs already in queue
     let totalQueueEta = calculateETA(project, false, null, 'all', isVoiceOnly);
     for (const job of queue) {
-      const qProj = dbService.getProject(job.projectId);
+      const qProj = await dbService.getProject(job.projectId);
       if (qProj) {
         totalQueueEta += calculateETA(
           qProj, 
@@ -109,12 +141,16 @@ export const queueService = {
     project.stepStatus = isVoiceOnly ? 'Waiting in queue for voice-only render...' : 'Waiting in render queue...';
     project.error = null;
     project.eta = totalQueueEta;
-    dbService.saveProject(project);
+    await dbService.saveProject(project);
 
     // Push the render job
-    queue.push({ projectId, type: renderType });
+    queue.push({ 
+      projectId, 
+      type: renderType, 
+      userId: project.userId.toString() 
+    });
 
-    console.log(`[Queue Manager] Enqueued ${renderType} render for project: ${projectId}. Queue size: ${queue.length}`);
+    console.log(`[Queue Manager] Enqueued ${renderType} render for project: ${projectId}. Total Queue Size: ${queue.length}`);
     wsManager.log(projectId, {
       message: isVoiceOnly ? 'Added to voice-only render queue...' : 'Added to render queue. Waiting for slot...',
       progress: 0,
@@ -129,8 +165,8 @@ export const queueService = {
   /**
    * Enqueues a single scene targeted regeneration
    */
-  enqueueRegenerate(projectId, sceneNumber, regenerateType) {
-    const project = dbService.getProject(projectId);
+  async enqueueRegenerate(projectId, sceneNumber, regenerateType) {
+    const project = await dbService.getProject(projectId);
     if (!project) return false;
 
     // Reset log history for fresh run
@@ -139,7 +175,7 @@ export const queueService = {
     // Calculate queue ETA including jobs already in queue
     let totalQueueEta = calculateETA(project, true, sceneNumber, regenerateType);
     for (const job of queue) {
-      const qProj = dbService.getProject(job.projectId);
+      const qProj = await dbService.getProject(job.projectId);
       if (qProj) {
         totalQueueEta += calculateETA(qProj, job.type === 'single', job.sceneNumber, job.regenerateType);
       }
@@ -150,13 +186,14 @@ export const queueService = {
     project.stepStatus = `Queueing scene ${sceneNumber} regeneration (${regenerateType})...`;
     project.error = null;
     project.eta = totalQueueEta;
-    dbService.saveProject(project);
+    await dbService.saveProject(project);
 
     queue.push({
       projectId,
       type: 'single',
       sceneNumber,
-      regenerateType
+      regenerateType,
+      userId: project.userId.toString()
     });
 
     console.log(`[Queue Manager] Enqueued scene ${sceneNumber} regeneration for: ${projectId}`);
@@ -171,7 +208,7 @@ export const queueService = {
     return true;
   },
 
-  cancelProject(projectId) {
+  async cancelProject(projectId) {
     console.log(`[Queue Manager] Request to cancel rendering for project: ${projectId}`);
     
     // 1. Remove from queue list if it is queued but not active yet
@@ -182,13 +219,22 @@ export const queueService = {
       console.log(`[Queue Manager] Releasing project ${projectId} from the queue.`);
     }
 
-    const project = dbService.getProject(projectId);
+    // 2. If it is currently active, kill its active subprocesses
+    for (const [userId, activeJob] of activeJobs.entries()) {
+      if (activeJob.projectId === projectId) {
+        console.log(`[Queue Manager] Actively rendering project ${projectId} for user ${userId}. Killing processes...`);
+        processRegistry.kill(projectId);
+        activeJobs.delete(userId);
+      }
+    }
+
+    const project = await dbService.getProject(projectId);
     if (project) {
       project.status = 'draft';
       project.progress = 0;
       project.stepStatus = 'Render process cancelled by user';
       project.error = null;
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
 
       wsManager.log(projectId, {
         message: 'Render process cancelled by user.',
@@ -197,27 +243,36 @@ export const queueService = {
       });
     }
 
-    // 2. If it is currently active, kill its active subprocesses
-    if (activeProjectId === projectId) {
-      console.log(`[Queue Manager] Actively rendering project ${projectId}. Killing child processes...`);
-      processRegistry.kill(projectId);
-    }
-
+    this.processQueue();
     return true;
   },
 
   /**
-   * Process the next job in the queue
+   * Process the next job in the queue (tenant-isolated concurrent scheduling)
    */
   async processQueue() {
-    if (isProcessing) return;
+    // 1. Check if global render capacity is reached
+    if (activeJobs.size >= MAX_GLOBAL_CONCURRENCY) return;
     if (queue.length === 0) return;
 
-    isProcessing = true;
-    const job = queue.shift();
-    activeProjectId = job.projectId;
+    // 2. Find the first job in the queue whose user does NOT have an active render
+    let nextJobIndex = -1;
+    for (let i = 0; i < queue.length; i++) {
+      const job = queue[i];
+      if (!activeJobs.has(job.userId)) {
+        nextJobIndex = i;
+        break;
+      }
+    }
+
+    // 3. If no such job is found, we do not start rendering to enforce the per-user concurrency limit
+    if (nextJobIndex === -1) return;
+
+    const job = queue.splice(nextJobIndex, 1)[0];
+    activeJobs.set(job.userId, job);
     processRegistry.setCurrentProject(job.projectId);
-    console.log(`[Queue Manager] Processing job of type: ${job.type} for project: ${job.projectId}`);
+
+    console.log(`[Queue Manager] Starting render job of type: ${job.type} for project: ${job.projectId} (User: ${job.userId})`);
 
     try {
       const startTime = Date.now();
@@ -229,16 +284,16 @@ export const queueService = {
         await this.renderSingleScene(job.projectId, job.sceneNumber, job.regenerateType);
       }
       const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`[Queue Manager] Finished processing job for ${job.projectId} in ${durationSec}s`);
+      console.log(`[Queue Manager] Finished job for ${job.projectId} in ${durationSec}s`);
     } catch (err) {
       console.error(`[Queue Manager] Job processing failed for project ${job.projectId}:`, err);
-      const project = dbService.getProject(job.projectId);
+      const project = await dbService.getProject(job.projectId);
       if (project) {
         if (project.status !== 'draft') {
           project.status = 'failed';
           project.error = err.message || 'Unknown processing error';
           project.stepStatus = 'Rendering failed';
-          dbService.saveProject(project);
+          await dbService.saveProject(project);
           
           wsManager.log(job.projectId, {
             message: `ERROR: ${project.error}`,
@@ -248,8 +303,7 @@ export const queueService = {
         }
       }
     } finally {
-      isProcessing = false;
-      activeProjectId = null;
+      activeJobs.delete(job.userId);
       processRegistry.setCurrentProject(null);
       this.processQueue();
     }
@@ -259,14 +313,11 @@ export const queueService = {
    * Performs full rendering pipeline
    */
   async renderProject(projectId) {
-    const project = dbService.getProject(projectId);
+    const project = await dbService.getProject(projectId);
     if (!project) throw new Error('Project not found');
 
-    const projectDir = path.join(env.paths.projects, projectId);
-    if (!fs.existsSync(projectDir)) {
-      fs.mkdirSync(projectDir, { recursive: true });
-    }
-
+    const projectDir = storageHelper.getProjectDir(project.userId, projectId);
+    
     // Dynamic CTA scene assembly
     let renderScenes = [...project.scenes];
     let ctaDuration = 0;
@@ -291,7 +342,7 @@ export const queueService = {
 
       ctaScene.sceneNumber = project.scenes.length + 1;
       project.ctaScene = ctaScene;
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
       
       renderScenes.push(project.ctaScene);
       ctaDuration = project.ctaSettings.duration || 5;
@@ -300,7 +351,7 @@ export const queueService = {
     let remainingEta = project.eta || calculateETA(project, false);
     const startEtaTime = Date.now();
 
-    const updateProgress = (progress, stage, msg, currentScene = 0) => {
+    const updateProgress = async (progress, stage, msg, currentScene = 0) => {
       // Calculate real time elapsed and adjust remaining ETA
       const elapsed = Math.round((Date.now() - startEtaTime) / 1000);
       let etaVal = Math.max(1, remainingEta - elapsed);
@@ -310,7 +361,7 @@ export const queueService = {
       project.progress = progress;
       project.stepStatus = msg;
       project.eta = etaVal;
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
 
       wsManager.log(projectId, {
         message: msg,
@@ -323,7 +374,7 @@ export const queueService = {
     };
 
     // Step 1: Parallel Voiceover Synthesis (Phase 1)
-    updateProgress(10, 'voice_generation', 'Synthesizing all narration voiceovers in parallel...');
+    await updateProgress(10, 'voice_generation', 'Synthesizing all narration voiceovers in parallel...');
     const voiceTasks = renderScenes.map((scene, index) => {
       return async () => {
         const sceneNumber = index + 1;
@@ -343,20 +394,17 @@ export const queueService = {
     });
 
     await limitConcurrency(6, voiceTasks, (task) => task());
-    dbService.saveProject(project);
+    await dbService.saveProject(project);
 
     // Step 2: Parallel Video Clips Retrieval (Phase 2)
-    updateProgress(30, 'clip_generation', 'Downloading / generating scene video clips...');
+    await updateProgress(30, 'clip_generation', 'Downloading / generating scene video clips...');
     const videoTasks = renderScenes.map((scene, index) => {
       return async () => {
         const sceneNumber = index + 1;
         const clipPath = path.join(projectDir, `scene_${sceneNumber}_raw.mp4`);
         if (!scene.videoPath || !fs.existsSync(scene.videoPath)) {
-          if (scene.clipType === 'Stock') {
-            await stockVideoService.getClip(scene.stockSearchKeyword, clipPath, scene.duration);
-          } else {
-            await videoGenerationService.generateClip(scene.visualPrompt, clipPath, scene.duration);
-          }
+          const isCta = (scene.sceneNumber === 999 || (index === renderScenes.length - 1 && project.ctaSettings?.enabled));
+          await ensureSceneVideoClip(project, scene, clipPath, scene.duration, isCta);
           scene.videoPath = clipPath;
         }
         
@@ -365,7 +413,7 @@ export const queueService = {
         if (!scene.thumbnailPath || !fs.existsSync(thumbPath)) {
           try {
             await ffmpegService.extractThumbnail(scene.videoPath, thumbPath);
-            scene.thumbnailPath = `/projects/${projectId}/scene_${sceneNumber}_thumb.jpg`;
+            scene.thumbnailPath = `/api/assets/projects/${projectId}/scene_${sceneNumber}_thumb.jpg`;
           } catch (thumbErr) {
             console.warn(`[Queue Manager] Failed to extract thumbnail for Scene ${sceneNumber}:`, thumbErr.message);
           }
@@ -373,16 +421,17 @@ export const queueService = {
       };
     });
 
-    // Limit concurrency to 2 to protect API quotas and disk I/O
-    await limitConcurrency(2, videoTasks, (task) => task());
-    dbService.saveProject(project);
+    // Sequential execution (concurrency=1) for AI image generation to prevent
+    // Pollinations 402 rate limits and HuggingFace throttling
+    await limitConcurrency(1, videoTasks, (task) => task());
+    await dbService.saveProject(project);
 
     // 1. Fetch Background Music
-    updateProgress(50, 'music_fetching', 'Fetching background music track...');
+    await updateProgress(50, 'music_fetching', 'Fetching background music track...');
     const musicPath = await ffmpegService.getBackgroundMusic(project.bgMusicGenre || project.musicGenre);
 
     // Step 3: Parallel Scene Compilation (Phase 3)
-    updateProgress(60, 'scene_rendering', 'Compiling and rendering all vertical scenes...');
+    await updateProgress(60, 'scene_rendering', 'Compiling and rendering all vertical scenes...');
     const compiledScenePaths = [];
     const compileTasks = renderScenes.map((scene, index) => {
       return async () => {
@@ -407,8 +456,8 @@ export const queueService = {
     await limitConcurrency(2, compileTasks, (task) => task());
 
     // Step 4: Stitch Scenes & Mix Background Sidechained Music
-    updateProgress(85, 'merging', 'Mixing and ducking background music with final scenes stitch...');
-    const finalOutputPath = path.join(env.paths.outputs, `${projectId}_final.mp4`);
+    await updateProgress(85, 'merging', 'Mixing and ducking background music with final scenes stitch...');
+    const finalOutputPath = path.join(storageHelper.getUserOutputDir(project.userId), `${projectId}_final.mp4`);
     const cleanCompiledPaths = compiledScenePaths.filter(Boolean);
     await ffmpegService.mergeAndMixMusic(cleanCompiledPaths, musicPath, finalOutputPath, ctaDuration);
 
@@ -417,7 +466,7 @@ export const queueService = {
     project.progress = 100;
     project.stepStatus = 'Rendering Completed successfully!';
     project.outputPath = finalOutputPath;
-    dbService.saveProject(project);
+    await dbService.saveProject(project);
 
     wsManager.log(projectId, {
       message: 'Video rendering finished! Preview is ready.',
@@ -431,10 +480,10 @@ export const queueService = {
    * Performs targeted single scene regeneration
    */
   async renderSingleScene(projectId, sceneNumber, regenerateType) {
-    const project = dbService.getProject(projectId);
+    const project = await dbService.getProject(projectId);
     if (!project) throw new Error('Project not found');
 
-    const projectDir = path.join(env.paths.projects, projectId);
+    const projectDir = storageHelper.getProjectDir(project.userId, projectId);
     const sceneIndex = sceneNumber - 1;
     const scene = project.scenes[sceneIndex];
     if (!scene) throw new Error(`Scene ${sceneNumber} not found`);
@@ -442,7 +491,7 @@ export const queueService = {
     let remainingEta = calculateETA(project, true, sceneNumber, regenerateType);
     const startEtaTime = Date.now();
 
-    const updateProgress = (progress, stage, msg) => {
+    const updateProgress = async (progress, stage, msg) => {
       const elapsed = Math.round((Date.now() - startEtaTime) / 1000);
       const etaVal = Math.max(1, remainingEta - elapsed);
 
@@ -450,7 +499,7 @@ export const queueService = {
       project.progress = progress;
       project.stepStatus = msg;
       project.eta = etaVal;
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
 
       wsManager.log(projectId, {
         message: msg,
@@ -462,7 +511,7 @@ export const queueService = {
       });
     };
 
-    updateProgress(10, 'preparing', `Initializing targeted refresh for Scene ${sceneNumber}...`);
+    await updateProgress(10, 'preparing', `Initializing targeted refresh for Scene ${sceneNumber}...`);
 
     // A. Voice Regen
     if (regenerateType === 'all' || regenerateType === 'voice') {
@@ -471,7 +520,7 @@ export const queueService = {
         try { fs.unlinkSync(voicePath); } catch (e) {}
       }
       
-      updateProgress(25, 'voice_generation', `Regenerating voiceover for Scene ${sceneNumber}...`);
+      await updateProgress(25, 'voice_generation', `Regenerating voiceover for Scene ${sceneNumber}...`);
       const voiceName = project.voiceName || `${project.voiceLanguage}-${project.voiceGender}`;
       const ttsResult = await ttsService.synthesize(scene.narration, voiceName, voicePath, {
         speed: project.voiceSpeed,
@@ -481,7 +530,7 @@ export const queueService = {
       
       scene.voiceAudioPath = ttsResult.audioPath;
       scene.wordTimings = ttsResult.wordTimings;
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
     }
 
     const duration = await ffmpegService.getDuration(scene.voiceAudioPath);
@@ -494,34 +543,31 @@ export const queueService = {
         try { fs.unlinkSync(clipPath); } catch (e) {}
       }
 
-      updateProgress(45, 'clip_generation', `Regenerating video clip for Scene ${sceneNumber} (${scene.clipType})...`);
-      if (scene.clipType === 'Stock') {
-        await stockVideoService.getClip(scene.stockSearchKeyword, clipPath, duration);
-      } else {
-        await videoGenerationService.generateClip(scene.visualPrompt, clipPath, duration);
-      }
+      await updateProgress(45, 'clip_generation', `Regenerating video clip for Scene ${sceneNumber} (${scene.clipType})...`);
+      const isCta = (scene.sceneNumber === 999 || scene.isCta);
+      await ensureSceneVideoClip(project, scene, clipPath, duration, isCta);
       scene.videoPath = clipPath;
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
 
       // Extract fresh thumbnail
       const thumbPath = path.join(projectDir, `scene_${sceneNumber}_thumb.jpg`);
       try {
         if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
         await ffmpegService.extractThumbnail(scene.videoPath, thumbPath);
-        scene.thumbnailPath = `/projects/${projectId}/scene_${sceneNumber}_thumb.jpg`;
-        dbService.saveProject(project);
+        scene.thumbnailPath = `/api/assets/projects/${projectId}/scene_${sceneNumber}_thumb.jpg`;
+        await dbService.saveProject(project);
       } catch (thumbErr) {
         console.warn(`[Queue Manager] Thumbnail refresh failed:`, thumbErr.message);
       }
     }
 
     // C. Subtitles
-    updateProgress(65, 'subtitles', `Re-compiling subtitles for Scene ${sceneNumber}...`);
+    await updateProgress(65, 'subtitles', `Re-compiling subtitles for Scene ${sceneNumber}...`);
     const assPath = path.join(projectDir, `scene_${sceneNumber}_subs.ass`);
     subtitleService.writeAssFile(scene.wordTimings, assPath);
 
     // D. Re-compile only this scene
-    updateProgress(75, 'scene_rendering', `Re-rendering Scene ${sceneNumber} file...`);
+    await updateProgress(75, 'scene_rendering', `Re-rendering Scene ${sceneNumber} file...`);
     const renderedScenePath = path.join(projectDir, `scene_${sceneNumber}_rendered.mp4`);
     if (fs.existsSync(renderedScenePath)) {
       try { fs.unlinkSync(renderedScenePath); } catch (e) {}
@@ -529,7 +575,7 @@ export const queueService = {
     await ffmpegService.compileScene(scene.videoPath, scene.voiceAudioPath, assPath, renderedScenePath, duration);
 
     // E. Re-stitch all compiled scenes
-    updateProgress(85, 'merging', 'Re-stitching final vertical Short and mixing background music...');
+    await updateProgress(85, 'merging', 'Re-stitching final vertical Short and mixing background music...');
     const compiledScenePaths = [];
     const compileTasks = [];
     
@@ -553,9 +599,9 @@ export const queueService = {
           
           // Ensure raw visual and audio exist for CTA or other scene
           if (!neighboringScene.videoPath || !fs.existsSync(neighboringScene.videoPath)) {
-            if (neighboringScene.sceneNumber === project.scenes.length + 1) {
+            if (neighboringScene.sceneNumber === project.scenes.length + 1 || neighboringScene.sceneNumber === 999) {
               const clipPath = path.join(projectDir, `scene_${neighboringScene.sceneNumber}_raw.mp4`);
-              await videoGenerationService.generateClip(neighboringScene.visualPrompt, clipPath, neighboringScene.duration || 5);
+              await ensureSceneVideoClip(project, neighboringScene, clipPath, neighboringScene.duration || 5, true);
               neighboringScene.videoPath = clipPath;
             } else {
               throw new Error(`Raw video clip missing for Scene ${i}. Cannot regenerate.`);
@@ -595,7 +641,7 @@ export const queueService = {
     }
 
     const musicPath = await ffmpegService.getBackgroundMusic(project.bgMusicGenre || project.musicGenre);
-    const finalOutputPath = path.join(env.paths.outputs, `${projectId}_final.mp4`);
+    const finalOutputPath = path.join(storageHelper.getUserOutputDir(project.userId), `${projectId}_final.mp4`);
     await ffmpegService.mergeAndMixMusic(compiledScenePaths, musicPath, finalOutputPath, ctaDuration);
 
     // F. Complete
@@ -603,7 +649,7 @@ export const queueService = {
     project.progress = 100;
     project.stepStatus = 'Regeneration Completed!';
     project.outputPath = finalOutputPath;
-    dbService.saveProject(project);
+    await dbService.saveProject(project);
 
     wsManager.log(projectId, {
       message: 'Regeneration completed successfully!',
@@ -617,13 +663,10 @@ export const queueService = {
    * Performs partial smart re-rendering (voice, speed, and subtitles only)
    */
   async renderProjectVoiceOnly(projectId) {
-    const project = dbService.getProject(projectId);
+    const project = await dbService.getProject(projectId);
     if (!project) throw new Error('Project not found');
 
-    const projectDir = path.join(env.paths.projects, projectId);
-    if (!fs.existsSync(projectDir)) {
-      fs.mkdirSync(projectDir, { recursive: true });
-    }
+    const projectDir = storageHelper.getProjectDir(project.userId, projectId);
 
     // Dynamic CTA scene assembly
     let renderScenes = [...project.scenes];
@@ -649,7 +692,7 @@ export const queueService = {
 
       ctaScene.sceneNumber = project.scenes.length + 1;
       project.ctaScene = ctaScene;
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
       
       renderScenes.push(project.ctaScene);
       ctaDuration = project.ctaSettings.duration || 5;
@@ -658,7 +701,7 @@ export const queueService = {
     let remainingEta = calculateETA(project, false, null, 'all', true);
     const startEtaTime = Date.now();
 
-    const updateProgress = (progress, stage, msg) => {
+    const updateProgress = async (progress, stage, msg) => {
       const elapsed = Math.round((Date.now() - startEtaTime) / 1000);
       let etaVal = Math.max(1, remainingEta - elapsed);
       if (progress >= 100) etaVal = 0;
@@ -667,7 +710,7 @@ export const queueService = {
       project.progress = progress;
       project.stepStatus = msg;
       project.eta = etaVal;
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
 
       wsManager.log(projectId, {
         message: msg,
@@ -680,7 +723,7 @@ export const queueService = {
     };
 
     // Step 1: Parallel Voiceover Synthesis
-    updateProgress(10, 'voice_generation', 'Regenerating narration voiceovers in parallel...');
+    await updateProgress(10, 'voice_generation', 'Regenerating narration voiceovers in parallel...');
     const voiceTasks = renderScenes.map((scene, index) => {
       return async () => {
         const sceneNumber = index + 1;
@@ -702,14 +745,14 @@ export const queueService = {
     });
 
     await limitConcurrency(6, voiceTasks, (task) => task());
-    dbService.saveProject(project);
+    await dbService.saveProject(project);
 
     // Step 2: Fetch Background Music
-    updateProgress(50, 'music_fetching', 'Fetching background music track...');
+    await updateProgress(50, 'music_fetching', 'Fetching background music track...');
     const musicPath = await ffmpegService.getBackgroundMusic(project.bgMusicGenre || project.musicGenre);
 
     // Step 3: Parallel Scene Compilation (bypassing visual generation)
-    updateProgress(65, 'scene_rendering', 'Re-compiling scene segments with new voice & subtitles...');
+    await updateProgress(65, 'scene_rendering', 'Re-compiling scene segments with new voice & subtitles...');
     const compiledScenePaths = [];
     const compileTasks = renderScenes.map((scene, index) => {
       return async () => {
@@ -722,10 +765,10 @@ export const queueService = {
 
         // Ensure we have a valid raw video clip
         if (!scene.videoPath || !fs.existsSync(scene.videoPath)) {
-          if (scene.sceneNumber === project.scenes.length + 1) {
-            console.log('[Queue Manager] CTA raw video clip missing. Generating on the fly...');
+          if (scene.sceneNumber === project.scenes.length + 1 || scene.sceneNumber === 999) {
+            console.log('[Queue Manager] CTA raw video clip missing. Copying on the fly...');
             const clipPath = path.join(projectDir, `scene_${scene.sceneNumber}_raw.mp4`);
-            await videoGenerationService.generateClip(scene.visualPrompt, clipPath, scene.duration || 5);
+            await ensureSceneVideoClip(project, scene, clipPath, scene.duration || 5, true);
             scene.videoPath = clipPath;
           } else {
             throw new Error(`Raw video clip missing for Scene ${sceneNumber}. Please run full render first.`);
@@ -741,8 +784,8 @@ export const queueService = {
     await limitConcurrency(2, compileTasks, (task) => task());
 
     // Step 4: Stitch Scenes & Mix Background Sidechained Music
-    updateProgress(85, 'merging', 'Mixing and ducking background music with final scenes stitch...');
-    const finalOutputPath = path.join(env.paths.outputs, `${projectId}_final.mp4`);
+    await updateProgress(85, 'merging', 'Mixing and ducking background music with final scenes stitch...');
+    const finalOutputPath = path.join(storageHelper.getUserOutputDir(project.userId), `${projectId}_final.mp4`);
     const cleanCompiledPaths = compiledScenePaths.filter(Boolean);
     await ffmpegService.mergeAndMixMusic(cleanCompiledPaths, musicPath, finalOutputPath, ctaDuration);
 
@@ -751,7 +794,7 @@ export const queueService = {
     project.progress = 100;
     project.stepStatus = 'Quick voice update completed!';
     project.outputPath = finalOutputPath;
-    dbService.saveProject(project);
+    await dbService.saveProject(project);
 
     wsManager.log(projectId, {
       message: 'Quick voice update finished! Preview is ready.',

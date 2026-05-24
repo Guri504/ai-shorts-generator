@@ -5,28 +5,23 @@ import { dbService } from '../services/dbService.js';
 import { geminiService } from '../services/geminiService.js';
 import { queueService } from '../services/queueService.js';
 import { env } from '../config/env.js';
+import { storageHelper } from '../utils/storageHelper.js';
 
 export const projectController = {
-  // Get all projects
+  // Get all projects for logged-in user
   async getAllProjects(req, res) {
     try {
-      const projects = dbService.getProjects();
-      // Sort by creation or update time (newest first)
-      projects.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+      const projects = await dbService.getProjects(req.user._id);
       res.json(projects);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
   },
 
-  // Get project by ID
+  // Get project by ID (ownership verified by middleware)
   async getProjectById(req, res) {
     try {
-      const project = dbService.getProject(req.params.id);
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
-      res.json(project);
+      res.json(req.project);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -66,8 +61,9 @@ export const projectController = {
       );
 
       // 3. Construct project schema
-      const newProject = {
+      const newProjectData = {
         id: projectId,
+        userId: req.user._id,
         topic: topicOrTitle,
         voiceLanguage: language,
         voiceGender,
@@ -107,36 +103,38 @@ export const projectController = {
         ctaScene: null
       };
 
-      // 4. Save to JSON Database
-      dbService.saveProject(newProject);
-      res.status(201).json(newProject);
+      // 4. Save to MongoDB
+      const savedProject = await dbService.saveProject(newProjectData, req.user._id);
+      res.status(201).json(savedProject);
     } catch (error) {
       console.error('[Project Controller] Script generation failed:', error);
       res.status(500).json({ error: `Script generation failed: ${error.message}` });
     }
   },
 
-  // Update Project (e.g. edit narration, metadata, or prompts)
+  // Update Project
   async updateProject(req, res) {
     try {
-      const existingProject = dbService.getProject(req.params.id);
-      if (!existingProject) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
+      const project = req.project;
 
       // Merge request body changes
-      const updatedProject = { ...existingProject, ...req.body };
+      const fieldsToUpdate = { ...req.body };
+      delete fieldsToUpdate.id;
+      delete fieldsToUpdate.userId;
+      delete fieldsToUpdate._id;
+
+      Object.assign(project, fieldsToUpdate);
       
-      // Ensure ctaSettings object is merged nestedly so we don't overwrite other settings
+      // Ensure ctaSettings object is merged nestedly
       if (req.body.ctaSettings) {
-        updatedProject.ctaSettings = {
-          ...existingProject.ctaSettings,
+        project.ctaSettings = {
+          ...project.ctaSettings,
           ...req.body.ctaSettings
         };
       }
       
-      dbService.saveProject(updatedProject);
-      res.json(updatedProject);
+      await dbService.saveProject(project);
+      res.json(project);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -145,16 +143,28 @@ export const projectController = {
   // Trigger Video Render Queue (Phase 2)
   async renderProject(req, res) {
     try {
-      const project = dbService.getProject(req.params.id);
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
+      const project = req.project;
+      const isCreditsDisabled = env.DISABLE_CREDIT_SYSTEM;
+
+      // Check credits only if system is enabled
+      if (!isCreditsDisabled && req.user.credits < 1) {
+        return res.status(402).json({ error: 'Insufficient credits. Please upgrade your plan or wait for credit renewal.' });
       }
 
-      // Enqueue rendering job (supporting voice_only partial renders)
+      // Enqueue rendering job
       const { renderType } = req.body;
-      const success = queueService.enqueue(project.id, { renderType });
+      const success = await queueService.enqueue(project.id, { renderType });
       if (success) {
-        res.json({ message: 'Project added to rendering queue', projectId: project.id });
+        // Debit credit only if system is enabled
+        if (!isCreditsDisabled) {
+          req.user.credits = Math.max(0, req.user.credits - 1);
+          await req.user.save();
+        }
+        res.json({ 
+          message: 'Project added to rendering queue', 
+          projectId: project.id, 
+          remainingCredits: isCreditsDisabled ? 99999 : req.user.credits 
+        });
       } else {
         res.status(500).json({ error: 'Failed to queue project rendering' });
       }
@@ -166,10 +176,7 @@ export const projectController = {
   // Delete Project & Clean folder
   async deleteProject(req, res) {
     try {
-      const project = dbService.getProject(req.params.id);
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
+      const project = req.project;
 
       // Cancel rendering if it is currently in queue or rendering
       if (project.status === 'rendering' || project.status === 'queued') {
@@ -177,10 +184,10 @@ export const projectController = {
       }
 
       // 1. Delete DB entry
-      dbService.deleteProject(project.id);
+      await dbService.deleteProject(project.id);
 
       // 2. Cleanup local folder
-      const projectFolder = path.join(env.paths.projects, project.id);
+      const projectFolder = storageHelper.getProjectDir(req.user._id, project.id);
       if (fs.existsSync(projectFolder)) {
         fs.rmSync(projectFolder, { recursive: true, force: true });
       }
@@ -251,20 +258,16 @@ export const projectController = {
 
   // Reorder project scenes
   async reorderScenes(req, res) {
-    const { id } = req.params;
     const { scenes } = req.body;
     try {
-      const project = dbService.getProject(id);
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
+      const project = req.project;
 
       project.scenes = scenes.map((scene, index) => ({
         ...scene,
         sceneNumber: index + 1
       }));
 
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
       res.json(project);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -273,21 +276,18 @@ export const projectController = {
 
   // Regenerate a single scene aspect (voice, clip, subtitles, or all) and rebuild short
   async regenerateScene(req, res) {
-    const { id, sceneNumber } = req.params;
+    const { sceneNumber } = req.params;
     const { regenerateType = 'all' } = req.body; // 'all', 'clip', 'voice', 'subtitles'
 
     try {
-      const project = dbService.getProject(id);
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
+      const project = req.project;
 
       const num = parseInt(sceneNumber, 10);
       if (isNaN(num) || num < 1 || num > project.scenes.length) {
         return res.status(400).json({ error: 'Invalid sceneNumber' });
       }
 
-      const success = queueService.enqueueRegenerate(project.id, num, regenerateType);
+      const success = await queueService.enqueueRegenerate(project.id, num, regenerateType);
       if (success) {
         res.json({ message: 'Scene regeneration queued', projectId: project.id, sceneNumber: num, regenerateType });
       } else {
@@ -300,13 +300,8 @@ export const projectController = {
 
   // Cancel project rendering job
   async cancelRender(req, res) {
-    const { id } = req.params;
     try {
-      const project = dbService.getProject(id);
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
-
+      const project = req.project;
       queueService.cancelProject(project.id);
       res.json({ success: true, message: 'Rendering process cancelled successfully.' });
     } catch (error) {
@@ -316,12 +311,9 @@ export const projectController = {
 
   // Delete a specific scene from a project draft
   async deleteScene(req, res) {
-    const { id, sceneNumber } = req.params;
+    const { sceneNumber } = req.params;
     try {
-      const project = dbService.getProject(id);
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
+      const project = req.project;
 
       if (project.status !== 'draft') {
         return res.status(400).json({ error: 'Scenes can only be deleted in draft status.' });
@@ -341,7 +333,7 @@ export const projectController = {
         sceneNumber: index + 1
       }));
 
-      dbService.saveProject(project);
+      await dbService.saveProject(project);
       res.json(project);
     } catch (error) {
       res.status(500).json({ error: error.message });

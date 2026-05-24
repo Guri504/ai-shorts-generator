@@ -42,6 +42,11 @@ import app from './app.js';
 import { env } from './config/env.js';
 import { wsManager } from './utils/wsManager.js';
 import { runStartupChecks } from './utils/healthCheck.js';
+import { connectDb } from './services/dbService.js';
+import { initializeAssets } from './utils/assetInitializer.js';
+
+// Connect to MongoDB
+connectDb().catch(err => console.error('[Server] Database connection failure:', err));
 
 const PORT = env.PORT;
 
@@ -56,10 +61,12 @@ const server = app.listen(PORT, () => {
 // Initialize WebSocket support
 wsManager.init(server);
 
-// Run startup health checks (non-blocking)
-runStartupChecks().catch(err => {
-  console.warn('[Health Check] Startup checks failed:', err.message);
-});
+// Run startup health checks and generate assets (non-blocking)
+runStartupChecks()
+  .then(() => initializeAssets())
+  .catch(err => {
+    console.warn('[Startup Check] Initialization failed:', err.message);
+  });
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {

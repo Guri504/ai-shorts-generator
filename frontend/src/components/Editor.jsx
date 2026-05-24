@@ -3,17 +3,17 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore, BACKEND_URL } from '../store/appStore';
 import { Card, Button, TextArea, Input, Select, ListBox, ProgressBar } from '@heroui/react';
-import { 
-  Play, Copy, Download, Save, Film, HelpCircle, Check, 
+import {
+  Play, Copy, Download, Save, Film, HelpCircle, Check,
   AlertCircle, RefreshCw, GripHorizontal, Sparkles, Image, Video, Wand2, Layers, Trash2, XCircle
 } from 'lucide-react';
 
 export default function Editor() {
-  const { 
-    currentProject, 
-    saveProjectEdits, 
+  const {
+    currentProject,
+    saveProjectEdits,
     reorderScenes,
-    renderProject, 
+    renderProject,
     regenerateScene,
     setActiveTab,
     renderLogs,
@@ -25,26 +25,31 @@ export default function Editor() {
     deleteScene,
     voices = [],
     fetchVoices,
-    previewVoice
+    previewVoice,
+    token,
+    youtubeAccounts = [],
+    fetchYouTubeAccounts,
+    uploadToYouTube,
+    isUploadingYouTube
   } = useAppStore();
-  
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [hashtags, setHashtags] = useState('');
   const [scenes, setScenes] = useState([]);
-  
+
   // Voice & Audio locally edited states
   const [voiceName, setVoiceName] = useState('');
   const [voiceSpeed, setVoiceSpeed] = useState(1.0);
   const [voicePitch, setVoicePitch] = useState('+0Hz');
   const [voiceVolume, setVoiceVolume] = useState('+0%');
-  
+
   // CTA Outro settings states
   const [ctaEnabled, setCtaEnabled] = useState(true);
   const [ctaStyle, setCtaStyle] = useState('auto');
   const [ctaLanguage, setCtaLanguage] = useState('auto');
   const [ctaDuration, setCtaDuration] = useState('5');
-  
+
   const [previewText, setPreviewText] = useState('Hello, this is a preview of the selected voice.');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [audioObj, setAudioObj] = useState(null);
@@ -56,12 +61,28 @@ export default function Editor() {
   const [copiedField, setCopiedField] = useState(''); // '', 'title', 'desc', 'tags'
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
-  // Fetch voice list on editor mount
+  // YouTube publishing states
+  const [selectedYoutubeId, setSelectedYoutubeId] = useState('');
+  const [ytUploadSuccess, setYtUploadSuccess] = useState('');
+  const [ytUploadError, setYtUploadError] = useState('');
+  const [showYtModal, setShowYtModal] = useState(false);
+  const [modalUploadType, setModalUploadType] = useState('short'); // 'short' | 'video'
+  const [modalPrivacyStatus, setModalPrivacyStatus] = useState('public'); // 'public' | 'private'
+
+  // Fetch voice list and youtube integrations on editor mount
   useEffect(() => {
     if (voices && voices.length === 0) {
       fetchVoices();
     }
-  }, [voices, fetchVoices]);
+    fetchYouTubeAccounts();
+  }, [voices, fetchVoices, fetchYouTubeAccounts]);
+
+  // Set default YouTube channel selection when list loads
+  useEffect(() => {
+    if (youtubeAccounts.length > 0 && !selectedYoutubeId) {
+      setSelectedYoutubeId(youtubeAccounts[0]._id || youtubeAccounts[0].channelId);
+    }
+  }, [youtubeAccounts, selectedYoutubeId]);
 
   // Load project details into form states
   useEffect(() => {
@@ -78,7 +99,7 @@ export default function Editor() {
       setVoiceSpeed(currentProject.voiceSpeed || 1.0);
       setVoicePitch(currentProject.voicePitch || '+0Hz');
       setVoiceVolume(currentProject.voiceVolume || '+0%');
-      
+
       // Load CTA Ending Outro settings
       setCtaEnabled(currentProject.ctaSettings?.enabled ?? true);
       setCtaStyle(currentProject.ctaSettings?.style || 'auto');
@@ -114,11 +135,11 @@ export default function Editor() {
       setPlayingPreviewName(null);
       return;
     }
-    
+
     setIsPreviewLoading(true);
     const res = await previewVoice(vName, previewText, voiceSpeed);
     setIsPreviewLoading(false);
-    
+
     if (res.success) {
       if (audioObj) {
         audioObj.pause();
@@ -139,7 +160,7 @@ export default function Editor() {
   const handleSaveEdits = async () => {
     setIsSaving(true);
     setSaveSuccess(false);
-    
+
     // Parse hashtags
     const parsedHashtags = hashtags
       .split(/\s+/)
@@ -177,7 +198,7 @@ export default function Editor() {
   const handleSaveCtaSettings = async () => {
     setIsSaving(true);
     setSaveSuccess(false);
-    
+
     const parsedHashtags = hashtags
       .split(/\s+/)
       .map(tag => tag.replace(/#/g, '').trim())
@@ -222,7 +243,7 @@ export default function Editor() {
   const handleStartRender = async () => {
     setRenderError('');
     await handleSaveEdits();
-    
+
     const res = await renderProject(currentProject.id);
     if (!res.success) {
       setRenderError(res.error || 'Failed to start rendering.');
@@ -233,7 +254,7 @@ export default function Editor() {
   const handleVoiceOnlyRender = async () => {
     setRenderError('');
     await handleSaveEdits();
-    
+
     const res = await renderProject(currentProject.id, { renderType: 'voice_only' });
     if (!res.success) {
       setRenderError(res.error || 'Failed to start quick update.');
@@ -244,10 +265,28 @@ export default function Editor() {
   const handleRegenScene = async (sceneNumber, type) => {
     setRenderError('');
     await handleSaveEdits();
-    
+
     const res = await regenerateScene(currentProject.id, sceneNumber, type);
     if (!res.success) {
       setRenderError(res.error || `Failed to regenerate Scene ${sceneNumber}.`);
+    }
+  };
+
+  // Trigger YouTube video publishing
+  const handleYoutubePublish = async (privacyStatus = 'public', uploadType = 'short') => {
+    setYtUploadError('');
+    setYtUploadSuccess('');
+
+    if (!selectedYoutubeId) {
+      setYtUploadError('Please select a YouTube channel to upload to.');
+      return;
+    }
+
+    const res = await uploadToYouTube(currentProject.id, selectedYoutubeId, privacyStatus, uploadType);
+    if (res.success) {
+      setYtUploadSuccess(res.message || 'Video uploaded to YouTube successfully!');
+    } else {
+      setYtUploadError(res.error || 'Failed to upload video to YouTube.');
     }
   };
 
@@ -293,8 +332,8 @@ export default function Editor() {
     <div className="max-w-7xl mx-auto py-6 px-4 space-y-8">
       {/* Back navigation & Header */}
       <div className="flex justify-between items-center bg-slate-950/20 p-4 rounded-2xl border border-slate-900">
-        <Button 
-          variant="bordered" 
+        <Button
+          variant="bordered"
           onClick={() => setActiveTab('dashboard')}
           className="text-slate-300 border-slate-800 hover:border-violet-500 hover:text-white transition-colors"
         >
@@ -308,7 +347,7 @@ export default function Editor() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
+
         {/* LEFT COLUMN: EDIT METADATA & SCENES */}
         <div className="lg:col-span-7 space-y-6">
           <Card className="glow-card border-none bg-slate-950/60 p-4">
@@ -361,9 +400,9 @@ export default function Editor() {
                 Script & Scene Breakdown
               </h2>
               {(currentProject.status === 'draft' || currentProject.status === 'failed' || currentProject.status === 'completed') && (
-                <Button 
-                  size="sm" 
-                  color="secondary" 
+                <Button
+                  size="sm"
+                  color="secondary"
                   onClick={handleSaveEdits}
                   isLoading={isSaving}
                   className="bg-violet-600 flex items-center gap-1.5 shadow-lg shadow-violet-500/20"
@@ -402,7 +441,7 @@ export default function Editor() {
                       </Button>
                     )}
                   </div>
-                  
+
                   {/* Select Clip Type & Regenerate Actions */}
                   <div className="flex items-center gap-2">
                     <Select
@@ -496,7 +535,7 @@ export default function Editor() {
 
         {/* RIGHT COLUMN: PREVIEW & LIVE WS LOG TERMINAL */}
         <div className="lg:col-span-5 flex flex-col gap-6 justify-start">
-          
+
           {/* A. DRAFT RENDERING TRIGGER PANEL */}
           {currentProject.status === 'draft' && (
             <Card className="glow-card border-none bg-slate-950/60 p-6 sticky top-6 space-y-6">
@@ -567,8 +606,8 @@ export default function Editor() {
 
               <Card.Content className="space-y-6">
                 <div className="space-y-2">
-                  <ProgressBar 
-                    value={currentProject.progress} 
+                  <ProgressBar
+                    value={currentProject.progress}
                     className="max-w-md mx-auto w-full"
                   >
                     <div className="flex justify-between items-center text-xs text-slate-400 mb-1">
@@ -579,7 +618,7 @@ export default function Editor() {
                       <ProgressBar.Fill className="h-full bg-violet-600 rounded-full transition-all duration-300" />
                     </ProgressBar.Track>
                   </ProgressBar>
-                  
+
                   {/* Dynamic Render Stats */}
                   <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-slate-400 bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/40">
                     <div className="text-left">
@@ -590,7 +629,7 @@ export default function Editor() {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Live Real-time Logs Terminal */}
                 <div className="flex flex-col text-left">
                   <span className="text-[10px] font-bold uppercase text-slate-500 mb-1 tracking-wide">Live Compilation Terminal Logs</span>
@@ -599,8 +638,8 @@ export default function Editor() {
                     <p className="text-slate-500">&gt; Status: {currentProject.stepStatus}</p>
                     {renderLogs.map((log, lIdx) => (
                       <p key={lIdx} className={
-                        log.stage === 'complete' ? 'text-green-400 font-bold' : 
-                        (log.stage === 'failed' ? 'text-red-400' : 'text-slate-300')
+                        log.stage === 'complete' ? 'text-green-400 font-bold' :
+                          (log.stage === 'failed' ? 'text-red-400' : 'text-slate-300')
                       }>
                         ✓ {log.text}
                       </p>
@@ -665,13 +704,13 @@ export default function Editor() {
               {/* Vertical Simulator Video Container */}
               <div className="shorts-container relative">
                 <video
-                  src={`${BACKEND_URL}/outputs/${currentProject.id}_final.mp4`}
+                  src={`${BACKEND_URL}/api/assets/outputs/${currentProject.id}?token=${token}`}
                   className="w-full h-full object-cover"
                   controls
                   loop
                   autoPlay
                 />
-                
+
                 {/* YouTube overlay mocks */}
                 <div className="absolute bottom-12 left-4 right-14 pointer-events-none z-10 space-y-1.5">
                   <span className="text-xs bg-violet-600/90 text-white px-2 py-0.5 rounded-full font-semibold">
@@ -712,9 +751,9 @@ export default function Editor() {
               <Card className="glow-card border-none bg-slate-950/60 p-4">
                 <Card.Content className="space-y-4">
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       as="a"
-                      href={`${BACKEND_URL}/outputs/${currentProject.id}_final.mp4`}
+                      href={`${BACKEND_URL}/api/assets/outputs/${currentProject.id}?token=${token}`}
                       download={`${currentProject.id}_short.mp4`}
                       color="success"
                       className="flex-grow font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-500/10 text-white bg-emerald-600 hover:bg-emerald-700"
@@ -723,22 +762,132 @@ export default function Editor() {
                     </Button>
                   </div>
 
+                  {/* YouTube Publishing Section */}
+                  <div className="border-t border-slate-900 pt-4 space-y-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                      📺 Publish directly to YouTube
+                    </h4>
+
+                    {youtubeAccounts.length === 0 ? (
+                      <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 text-center text-xs text-slate-500">
+                        No YouTube channels connected.
+                        <button
+                          onClick={() => setActiveTab('settings')}
+                          className="text-violet-400 font-bold ml-1 hover:underline"
+                        >
+                          Connect a Channel
+                        </button>
+                      </div>
+                    ) : currentProject?.youtubeUpload?.status === 'success' ? (
+                      <div className="bg-green-950/20 border border-green-900/30 rounded-xl p-4 text-center space-y-3">
+                        <div className="text-2xl">🎉</div>
+                        <h5 className="text-xs font-bold text-green-400 uppercase tracking-wider">Published to YouTube</h5>
+                        <p className="text-[11px] text-slate-400">
+                          This video was successfully uploaded to <strong>{currentProject.youtubeUpload.channelName}</strong>.
+                        </p>
+                        {currentProject.youtubeUpload.videoId && (
+                          <a
+                            href={`https://youtube.com/watch?v=${currentProject.youtubeUpload.videoId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 font-semibold hover:underline"
+                          >
+                            View on YouTube ↗
+                          </a>
+                        )}
+                        <div className="pt-2">
+                          <button
+                            onClick={() => {
+                              setYtUploadError('');
+                              setYtUploadSuccess('');
+                              setShowYtModal(true);
+                            }}
+                            className="text-[10px] text-slate-500 hover:text-slate-300 underline font-medium"
+                          >
+                            Upload Again / Change Settings
+                          </button>
+                        </div>
+                      </div>
+                    ) : (isUploadingYouTube || currentProject?.youtubeUpload?.status === 'uploading') ? (
+                      <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-violet-400 animate-pulse">Uploading to YouTube...</span>
+                          <span className="font-bold text-slate-300">
+                            {currentProject?.youtubeUpload?.progress || 0}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-900">
+                          <div
+                            className="bg-gradient-to-r from-violet-600 to-fuchsia-600 h-full transition-all duration-300"
+                            style={{ width: `${currentProject?.youtubeUpload?.progress || 0}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-500 truncate">
+                          {currentProject?.youtubeUpload?.message || 'Preparing files...'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Select Target Channel</label>
+                          <select
+                            value={selectedYoutubeId}
+                            onChange={(e) => setSelectedYoutubeId(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-violet-500"
+                          >
+                            {youtubeAccounts.map((acc) => (
+                              <option key={acc._id || acc.channelId} value={acc._id || acc.channelId}>
+                                {acc.channelName} ({acc.email})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {ytUploadSuccess && (
+                          <div className="p-2.5 bg-green-950/20 border border-green-900/30 rounded-lg text-xs text-green-400">
+                            ✓ {ytUploadSuccess}
+                          </div>
+                        )}
+
+                        {ytUploadError && (
+                          <div className="p-2.5 bg-red-950/20 border border-red-900/30 rounded-lg text-xs text-red-400">
+                            ⚠️ {ytUploadError}
+                          </div>
+                        )}
+
+                        <Button
+                          size="md"
+                          color="danger"
+                          onClick={() => {
+                            setYtUploadError('');
+                            setYtUploadSuccess('');
+                            setShowYtModal(true);
+                          }}
+                          isLoading={isUploadingYouTube}
+                          className="w-full font-bold bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center justify-center gap-1.5"
+                        >
+                          Publish to YouTube
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="h-px bg-slate-900 w-full" />
 
                   {/* Copy boards */}
                   <div className="space-y-3">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide">SEO Publishing Assets</h4>
-                    
+
                     {/* Title Copy */}
                     <div className="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
                       <div className="overflow-hidden pr-2">
                         <span className="text-[10px] font-semibold text-slate-500 block">Short Title</span>
                         <span className="text-xs font-medium text-slate-200 truncate block">{title}</span>
                       </div>
-                      <Button 
-                        isIconOnly 
-                        size="sm" 
-                        variant="flat" 
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="flat"
                         onClick={() => handleCopyText(title, 'title')}
                       >
                         {copiedField === 'title' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
@@ -751,10 +900,10 @@ export default function Editor() {
                         <span className="text-[10px] font-semibold text-slate-500 block">Description</span>
                         <span className="text-xs font-medium text-slate-200 line-clamp-1 block">{description}</span>
                       </div>
-                      <Button 
-                        isIconOnly 
-                        size="sm" 
-                        variant="flat" 
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="flat"
                         onClick={() => handleCopyText(description, 'desc')}
                       >
                         {copiedField === 'desc' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
@@ -769,10 +918,10 @@ export default function Editor() {
                           {currentProject.metadata?.hashtags?.map(h => `#${h}`).join(' ')}
                         </span>
                       </div>
-                      <Button 
-                        isIconOnly 
-                        size="sm" 
-                        variant="flat" 
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="flat"
                         onClick={() => handleCopyText(currentProject.metadata?.hashtags?.map(h => `#${h}`).join(' '), 'tags')}
                       >
                         {copiedField === 'tags' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
@@ -807,12 +956,12 @@ export default function Editor() {
                     </span>
                   )}
                 </Card.Header>
-                
+
                 <Card.Content className="space-y-4">
                   {/* Voice Selection Dropdown */}
                   <div className="flex flex-col gap-1.5 w-full">
                     <label className="text-xs font-semibold text-slate-400">Narration Voice</label>
-                    
+
                     <div className="flex gap-2">
                       <Select
                         value={voiceName}
@@ -826,10 +975,10 @@ export default function Editor() {
                         <Select.Popover className="bg-slate-950 border border-slate-800 rounded-lg shadow-lg">
                           <ListBox className="p-1 max-h-[220px] overflow-y-auto">
                             {(voices || []).map(v => (
-                              <ListBox.Item 
-                                key={v.name} 
-                                id={v.name} 
-                                textValue={`${v.displayName} (${v.gender})`} 
+                              <ListBox.Item
+                                key={v.name}
+                                id={v.name}
+                                textValue={`${v.displayName} (${v.gender})`}
                                 className="cursor-pointer hover:bg-slate-900 rounded px-3 py-2 text-sm text-slate-200"
                               >
                                 <div className="flex justify-between items-center w-full">
@@ -848,13 +997,12 @@ export default function Editor() {
                           </ListBox>
                         </Select.Popover>
                       </Select>
-                      
+
                       <Button
                         variant="flat"
                         onClick={() => handlePreviewVoice(voiceName)}
-                        className={`font-semibold text-xs px-3 border border-slate-800 ${
-                          playingPreviewName === voiceName ? 'bg-violet-950/40 text-violet-400 border-violet-850' : 'bg-slate-950 text-slate-300'
-                        }`}
+                        className={`font-semibold text-xs px-3 border border-slate-800 ${playingPreviewName === voiceName ? 'bg-violet-950/40 text-violet-400 border-violet-850' : 'bg-slate-950 text-slate-300'
+                          }`}
                         isLoading={isPreviewLoading && playingPreviewName !== voiceName}
                       >
                         {playingPreviewName === voiceName ? '⏸️ Stop' : '🔊 Preview'}
@@ -895,7 +1043,7 @@ export default function Editor() {
                       onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))}
                       className="w-full h-1 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-violet-600"
                     />
-                    
+
                     {/* Preset Speed Buttons */}
                     <div className="grid grid-cols-4 gap-1.5">
                       {[
@@ -908,11 +1056,10 @@ export default function Editor() {
                           key={preset.label}
                           type="button"
                           onClick={() => setVoiceSpeed(preset.val)}
-                          className={`text-[10px] font-semibold py-1.5 rounded-lg border transition-all ${
-                            Math.abs(voiceSpeed - preset.val) < 0.01
+                          className={`text-[10px] font-semibold py-1.5 rounded-lg border transition-all ${Math.abs(voiceSpeed - preset.val) < 0.01
                               ? 'bg-violet-950/40 border-violet-850 text-violet-400 font-bold'
                               : 'bg-slate-950 border-slate-850 text-slate-400 hover:text-slate-300'
-                          }`}
+                            }`}
                         >
                           {preset.label}
                         </button>
@@ -926,12 +1073,12 @@ export default function Editor() {
                       <span className="text-xs font-semibold text-slate-400">Advanced settings</span>
                       <span className="text-[10px] text-slate-500 font-mono">Edge TTS configurations</span>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div className="space-y-1">
                         <span className="text-[10px] text-slate-500 font-semibold block">Pitch Adjust</span>
-                        <select 
-                          value={voicePitch} 
+                        <select
+                          value={voicePitch}
                           onChange={(e) => setVoicePitch(e.target.value)}
                           className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 text-xs focus:outline-none focus:border-violet-500"
                         >
@@ -942,11 +1089,11 @@ export default function Editor() {
                           <option value="-10Hz">Grave Pitch (-10Hz)</option>
                         </select>
                       </div>
-                      
+
                       <div className="space-y-1">
                         <span className="text-[10px] text-slate-500 font-semibold block">Volume Offset</span>
-                        <select 
-                          value={voiceVolume} 
+                        <select
+                          value={voiceVolume}
                           onChange={(e) => setVoiceVolume(e.target.value)}
                           className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 text-xs focus:outline-none focus:border-violet-500"
                         >
@@ -972,7 +1119,7 @@ export default function Editor() {
                     >
                       Save Settings
                     </Button>
-                    
+
                     {(currentProject.status === 'completed' || currentProject.status === 'draft' || currentProject.status === 'failed') && (
                       <Button
                         size="sm"
@@ -1019,11 +1166,11 @@ export default function Editor() {
                       <span className="text-[10px] text-slate-500">Automatically append subscribe & like scene</span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={ctaEnabled} 
-                        onChange={(e) => setCtaEnabled(e.target.checked)} 
-                        className="sr-only peer" 
+                      <input
+                        type="checkbox"
+                        checked={ctaEnabled}
+                        onChange={(e) => setCtaEnabled(e.target.checked)}
+                        className="sr-only peer"
                       />
                       <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 peer-checked:after:bg-white peer-checked:after:border-transparent"></div>
                     </label>
@@ -1163,8 +1310,8 @@ export default function Editor() {
           <div className="flex gap-4 pb-2 min-w-max">
             {scenes.map((scene, idx) => {
               const hasThumb = scene.thumbnailPath && scene.thumbnailPath !== '';
-              const thumbUrl = hasThumb ? `${BACKEND_URL}${scene.thumbnailPath}` : null;
-              
+              const thumbUrl = hasThumb ? `${BACKEND_URL}${scene.thumbnailPath}?token=${token}` : null;
+
               return (
                 <div
                   key={idx}
@@ -1172,14 +1319,13 @@ export default function Editor() {
                   onDragStart={(e) => handleDragStart(e, idx)}
                   onDragOver={(e) => handleDragOver(e, idx)}
                   onDrop={(e) => handleDrop(e, idx)}
-                  className={`relative flex flex-col justify-between w-[180px] h-[130px] rounded-xl border transition-all duration-300 p-2 cursor-grab active:cursor-grabbing bg-slate-950/80 group ${
-                    dragOverIndex === idx 
-                      ? 'border-violet-500 scale-[1.03] bg-violet-950/10' 
+                  className={`relative flex flex-col justify-between w-[180px] h-[130px] rounded-xl border transition-all duration-300 p-2 cursor-grab active:cursor-grabbing bg-slate-950/80 group ${dragOverIndex === idx
+                      ? 'border-violet-500 scale-[1.03] bg-violet-950/10'
                       : 'border-slate-800 hover:border-slate-600 hover:scale-[1.01]'
-                  }`}
+                    }`}
                 >
                   {/* Scene Number overlay */}
-                   <span className="absolute top-2 left-2 z-10 bg-slate-900/90 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-800 text-violet-400">
+                  <span className="absolute top-2 left-2 z-10 bg-slate-900/90 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-800 text-violet-400">
                     Scene {idx + 1}
                   </span>
 
@@ -1208,7 +1354,7 @@ export default function Editor() {
                   {/* Thumbnail / Visual indicator */}
                   <div className="w-full h-[70px] bg-slate-900/80 rounded-lg overflow-hidden flex items-center justify-center border border-slate-850 relative mt-5">
                     {thumbUrl ? (
-                      <img src={thumbUrl} alt={`Scene ${idx+1}`} className="w-full h-full object-cover" />
+                      <img src={thumbUrl} alt={`Scene ${idx + 1}`} className="w-full h-full object-cover" />
                     ) : (
                       <div className="flex flex-col items-center gap-1 text-slate-600">
                         {scene.clipType === 'AI' ? <Sparkles size={16} /> : <Video size={16} />}
@@ -1216,11 +1362,10 @@ export default function Editor() {
                       </div>
                     )}
                     {/* Source tag bottom overlay */}
-                    <span className={`absolute bottom-1 right-1 text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
-                      scene.clipType === 'AI' 
-                        ? 'bg-violet-950/90 text-violet-400 border border-violet-800/40' 
+                    <span className={`absolute bottom-1 right-1 text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase ${scene.clipType === 'AI'
+                        ? 'bg-violet-950/90 text-violet-400 border border-violet-800/40'
                         : 'bg-green-950/90 text-green-400 border border-green-800/40'
-                    }`}>
+                      }`}>
                       {scene.clipType}
                     </span>
                   </div>
@@ -1240,6 +1385,112 @@ export default function Editor() {
           </div>
         </Card.Content>
       </Card>
+
+      {/* YouTube Upload Confirmation Modal */}
+      {showYtModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowYtModal(false)}
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 hover:bg-slate-850 p-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-2">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                📺 YouTube Upload Settings
+              </h3>
+              <p className="text-xs text-slate-400">
+                Choose your publication format and privacy options before publishing to YouTube.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Option 1: Format / Upload Type */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  1. Video Format
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setModalUploadType('short')}
+                    className={`p-3.5 rounded-xl border text-left flex flex-col justify-between h-24 transition-all cursor-pointer ${modalUploadType === 'short'
+                        ? 'border-violet-500 bg-violet-950/20 text-white'
+                        : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700'
+                      }`}
+                  >
+                    <span className="text-xs font-bold">YouTube Short</span>
+                    <span className="text-[9px] leading-relaxed text-slate-500">Appends #Shorts for Shorts shelf discovery</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalUploadType('video')}
+                    className={`p-3.5 rounded-xl border text-left flex flex-col justify-between h-24 transition-all cursor-pointer ${modalUploadType === 'video'
+                        ? 'border-violet-500 bg-violet-950/20 text-white'
+                        : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700'
+                      }`}
+                  >
+                    <span className="text-xs font-bold">Standard Video</span>
+                    <span className="text-[9px] leading-relaxed text-slate-500">Normal video layout without tags</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 2: Privacy / Visibility */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  2. Privacy / Visibility
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setModalPrivacyStatus('public')}
+                    className={`p-3.5 rounded-xl border text-left flex flex-col justify-between h-24 transition-all cursor-pointer ${modalPrivacyStatus === 'public'
+                        ? 'border-violet-500 bg-violet-950/20 text-white'
+                        : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700'
+                      }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1">🌐 Public</span>
+                    <span className="text-[9px] leading-relaxed text-slate-500">Visible to everyone instantly</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalPrivacyStatus('private')}
+                    className={`p-3.5 rounded-xl border text-left flex flex-col justify-between h-24 transition-all cursor-pointer ${modalPrivacyStatus === 'private'
+                        ? 'border-violet-500 bg-violet-950/20 text-white'
+                        : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700'
+                      }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1">🔒 Private</span>
+                    <span className="text-[9px] leading-relaxed text-slate-500">Only visible to you (for review)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="bordered"
+                onClick={() => setShowYtModal(false)}
+                className="w-1/3 border-slate-800 hover:border-slate-700 text-slate-300 font-bold"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowYtModal(false);
+                  handleYoutubePublish(modalPrivacyStatus, modalUploadType);
+                }}
+                className="w-2/3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold rounded-xl flex items-center justify-center gap-1.5"
+              >
+                Confirm & Upload
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

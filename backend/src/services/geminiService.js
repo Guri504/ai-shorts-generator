@@ -42,14 +42,17 @@ You must split this script into EXACTLY ${sceneCount} logical scenes, each lasti
 IMPORTANT: Return EXACTLY ${sceneCount} scenes. No more, no less.
 
 For EACH scene, you must decide between two video source types:
-1. "Stock": Use stock footage for generic, common real-world elements (e.g. typing on a keyboard, city streets, walking, office meetings, coffee cups, mobile phones, standard nature scenery).
-2. "AI": Use Gemini Flow (cinematic video generator) ONLY when absolutely necessary for cinematic, futuristic, highly emotional closeups, storytelling, historical recreation, sci-fi, surreal, or impossible-to-film visuals (e.g. "a neon cyberpunk city in 2080", "an astronaut floating near a black hole", "a glowing magical book").
+1. "Stock": Use stock footage for generic, common real-world elements, typing, phone usage, office settings, people, generic scenes, cities, or standard nature.
+2. "AI": Use AI generation for impossible, surreal, fictional, fantasy, or cartoonish characters (e.g. talking animals, robots, aliens).
 
 CRITICAL CREDIT OPTIMIZATION RULES:
-- Flow credit usage is highly restricted. Be extremely selective.
-- If a visual can be realistically depicted using stock footage, you MUST choose "Stock".
-- Use "AI" ONLY for premium hooks or scenes that cannot exist or be filmed in the real world.
-- Ensure that at least 50-70% of scenes in a project are designated as "Stock" to conserve API credits.
+- AI credit usage is highly restricted. Be selective.
+- If a visual can be realistically depicted using stock footage, choose "Stock".
+- Ensure that at least 60-80% of scenes in a project are designated as "Stock" ONLY IF the topic is a standard real-world topic.
+- EXCEPTION FOR SURREAL/FANTASY/NON-HUMAN TOPICS: If the main subject of the video is fictional, fantasy-based, or is a non-human character performing human activities (e.g., "a talking cat opening a pizza shop", "a dancing robot", "an alien giving a speech"), you MUST bypass the stock rule and designate all scenes showing this character as "AI". Do NOT select "Stock" for these character scenes, because stock search will return standard humans or real animals which breaks visual consistency.
+
+CHARACTER SPEAKING / TALKING RULE:
+- If a scene is designated as "AI" and involves a character speaking the narration (like a talking cat), the "visualPrompt" MUST explicitly describe the character's facial expression and mouth position to show they are talking. Use phrases like: "mouth open as if speaking, talking to the camera, head tilted dynamically, expressive talking face, captured mid-speech". This allows the static AI image generator to draw them in an active speaking pose, which looks natural during video zoom.
 
 Keep the narration for each scene short, punchy, and high-retention. Use suspense, hooks in the first scene, and strong pacing.
 
