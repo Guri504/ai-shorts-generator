@@ -4,13 +4,19 @@
 @source "../../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
 
 :root {
-  --background: #030014;
-  --foreground: #f8fafc;
-  --primary: #8b5cf6;
-  --primary-hover: #7c3aed;
-  --accent: #22c55e;
-  --card-bg: rgba(15, 12, 30, 0.65);
-  --border-color: rgba(255, 255, 255, 0.08);
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+  --primary: #7c3aed;
+  --primary-hover: #6d28d9;
+  --accent: #a855f7;
+  --card-bg: #ffffff;
+  --border-color: #e2e8f0;
+  
+  /* Force HeroUI card elements to be white in all conditions */
+  --heroui-content1: 0 0% 100% !important;
+  --heroui-content1-opacity: 1 !important;
+  --heroui-background: 210 40% 98% !important;
+  --heroui-foreground: 222.2 84% 4.9% !important;
 }
 
 body {
@@ -19,54 +25,55 @@ body {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   overflow-x: hidden;
   background-image: 
-    radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(34, 197, 94, 0.05) 0%, transparent 40%);
+    radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.03) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.02) 0%, transparent 40%);
   background-attachment: fixed;
 }
 
-/* Custom Scrollbar for premium dark-mode feel */
+/* Custom Scrollbar for premium clean light-mode feel */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 12, 30, 0.2);
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.3);
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.5);
+  background: #94a3b8;
 }
 
-/* Neon Glow utilities */
+/* Modern SaaS Card styles */
 .glow-card {
-  background: var(--card-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 2px 8px -1px rgba(15, 23, 42, 0.02);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 20px;
 }
 
 .glow-card:hover {
-  border-color: rgba(139, 92, 246, 0.25);
-  box-shadow: 0 8px 32px 0 rgba(139, 92, 246, 0.08);
+  border-color: #d8b4fe;
+  box-shadow: 0 10px 25px -3px rgba(124, 58, 237, 0.08), 0 4px 12px -2px rgba(124, 58, 237, 0.03);
+  transform: translateY(-2px);
 }
 
 .glow-text-primary {
-  text-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+  color: var(--primary);
 }
 
 .glow-text-accent {
-  text-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+  color: var(--accent);
 }
 
-/* 9:16 Shorts Simulator Frame */
+/* 9:16 Shorts Simulator Frame - Light Edition */
 .shorts-container {
   aspect-ratio: 9 / 16;
   width: 100%;
@@ -75,15 +82,15 @@ body {
   border-radius: 24px;
   overflow: hidden;
   position: relative;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05);
   background: #000;
 }
 
 /* Captions animation styling inside preview */
 .caption-highlight {
-  color: #22c55e;
+  color: #fbbf24; /* Amber 400 */
   font-weight: 800;
-  text-shadow: 0 0 12px rgba(34, 197, 94, 0.8), 2px 2px 0px #000;
+  text-shadow: 2px 2px 0px #000;
   transform: scale(1.1);
   display: inline-block;
 }
@@ -93,3 +100,26 @@ body {
   font-weight: 700;
   text-shadow: 2px 2px 0px #000;
 }
+
+/* Custom premium styling for native select dropdowns */
+.premium-select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.75rem center !important;
+  background-size: 0.85em !important;
+  padding-right: 2.2rem !important;
+  transition: all 0.2s ease-in-out;
+}
+
+.premium-select:hover {
+  border-color: #cbd5e1;
+}
+
+.premium-select:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+}
+

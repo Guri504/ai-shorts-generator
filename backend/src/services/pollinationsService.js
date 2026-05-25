@@ -55,12 +55,12 @@ export const pollinationsService = {
    * Generates a cinematic image using Pollinations AI (free, no API key).
    * Fully cached and protected by a request rate spacing queue.
    */
-  async generateImage(rawPrompt, outputPath) {
+  async generateImage(rawPrompt, outputPath, width = IMAGE_WIDTH, height = IMAGE_HEIGHT) {
     const startTime = Date.now();
     const enhancedPrompt = this.enhancePrompt(rawPrompt);
 
     // 1. Check prompt cache first to avoid API calls completely
-    const cacheHit = this._checkCache(enhancedPrompt);
+    const cacheHit = this._checkCache(enhancedPrompt, width, height);
     if (cacheHit) {
       console.log(`[Pollinations] [CACHE HIT] Prompt hash matched. Reusing cached image.`);
       fs.copyFileSync(cacheHit, outputPath);
@@ -72,14 +72,14 @@ export const pollinationsService = {
     await enforceRequestSpacing();
 
     const seed = Math.floor(Math.random() * 999999);
-    const url = this._buildUrl(enhancedPrompt, seed);
+    const url = this._buildUrl(enhancedPrompt, seed, width, height);
 
     console.log(`[Pollinations] Requesting image for prompt: "${rawPrompt.substring(0, 80)}..."`);
     const imageBuffer = await this._downloadWithRetry(url, MAX_RETRIES);
 
     // 3. Save buffer to target output and cache
     fs.writeFileSync(outputPath, imageBuffer);
-    this._saveToCache(enhancedPrompt, imageBuffer);
+    this._saveToCache(enhancedPrompt, imageBuffer, width, height);
 
     console.log(`[Pollinations] Generated & cached image in ${Date.now() - startTime}ms. Size: ${(imageBuffer.length / 1024).toFixed(1)}KB`);
     return outputPath;
@@ -89,7 +89,7 @@ export const pollinationsService = {
    * Fallback generation strategy utilizing HuggingFace FLUX.1-schnell model.
    * Requires HF_API_KEY environment variable.
    */
-  async generateImageViaFlux(rawPrompt, outputPath) {
+  async generateImageViaFlux(rawPrompt, outputPath, width = IMAGE_WIDTH, height = IMAGE_HEIGHT) {
     const startTime = Date.now();
     const hfKey = env.HF_API_KEY || process.env.HF_API_KEY || '';
     
@@ -100,7 +100,7 @@ export const pollinationsService = {
     const enhancedPrompt = this.enhancePrompt(rawPrompt);
 
     // Check cache
-    const cacheHit = this._checkCache(enhancedPrompt);
+    const cacheHit = this._checkCache(enhancedPrompt, width, height);
     if (cacheHit) {
       console.log(`[HuggingFace FLUX] [CACHE HIT] Prompt hash matched. Reusing cached image.`);
       fs.copyFileSync(cacheHit, outputPath);
@@ -138,7 +138,7 @@ export const pollinationsService = {
     }
 
     fs.writeFileSync(outputPath, buffer);
-    this._saveToCache(enhancedPrompt, buffer);
+    this._saveToCache(enhancedPrompt, buffer, width, height);
 
     console.log(`[HuggingFace FLUX] Generated & cached image in ${Date.now() - startTime}ms.`);
     return outputPath;
@@ -165,9 +165,9 @@ export const pollinationsService = {
     return `${rawPrompt.trim()}, ${modifiers}`;
   },
 
-  _buildUrl(prompt, seed) {
+  _buildUrl(prompt, seed, width = IMAGE_WIDTH, height = IMAGE_HEIGHT) {
     const encoded = encodeURIComponent(prompt);
-    return `${POLLINATIONS_BASE}/${encoded}?width=${IMAGE_WIDTH}&height=${IMAGE_HEIGHT}&seed=${seed}&nologo=true`;
+    return `${POLLINATIONS_BASE}/${encoded}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
   },
 
   async _downloadWithRetry(url, retriesLeft) {
@@ -234,12 +234,12 @@ export const pollinationsService = {
     return false;
   },
 
-  _getPromptHash(prompt) {
-    return crypto.createHash('sha256').update(prompt).digest('hex').substring(0, 16);
+  _getPromptHash(prompt, width = IMAGE_WIDTH, height = IMAGE_HEIGHT) {
+    return crypto.createHash('sha256').update(`${prompt}_${width}x${height}`).digest('hex').substring(0, 16);
   },
 
-  _checkCache(enhancedPrompt) {
-    const hash = this._getPromptHash(enhancedPrompt);
+  _checkCache(enhancedPrompt, width = IMAGE_WIDTH, height = IMAGE_HEIGHT) {
+    const hash = this._getPromptHash(enhancedPrompt, width, height);
     const cachedPath = path.join(IMAGE_CACHE_DIR, `${hash}.jpg`);
 
     if (fs.existsSync(cachedPath)) {
@@ -252,9 +252,9 @@ export const pollinationsService = {
     return null;
   },
 
-  _saveToCache(enhancedPrompt, buffer) {
+  _saveToCache(enhancedPrompt, buffer, width = IMAGE_WIDTH, height = IMAGE_HEIGHT) {
     try {
-      const hash = this._getPromptHash(enhancedPrompt);
+      const hash = this._getPromptHash(enhancedPrompt, width, height);
       const cachedPath = path.join(IMAGE_CACHE_DIR, `${hash}.jpg`);
       fs.writeFileSync(cachedPath, buffer);
     } catch (err) {

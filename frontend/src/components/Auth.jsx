@@ -55,33 +55,33 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background glowing effects */}
-      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-violet-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-violet-600/5 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-emerald-600/5 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-8 shadow-2xl relative z-10">
+      <div className="w-full max-w-md bg-white border border-slate-200/80 rounded-3xl p-8 shadow-xl relative z-10">
         
         {/* LOGO */}
         <div className="flex flex-col items-center mb-8">
-          <div className="h-12 w-12 bg-gradient-to-tr from-violet-600 to-fuchsia-600 rounded-xl flex items-center justify-center font-extrabold text-white text-2xl shadow-xl shadow-violet-500/20 mb-3 animate-pulse">
+          <div className="h-12 w-12 bg-gradient-to-tr from-violet-600 to-fuchsia-600 rounded-2xl flex items-center justify-center font-extrabold text-white text-2xl shadow-xl shadow-violet-500/20 mb-3 animate-pulse">
             ⚡
           </div>
-          <h2 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 via-fuchsia-400 to-emerald-400 bg-clip-text text-transparent">
+          <h2 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-violet-600 via-fuchsia-600 to-emerald-600 bg-clip-text text-transparent">
             ShortsAI SaaS Platform
           </h2>
-          <p className="text-slate-400 text-xs mt-1 text-center font-medium">
+          <p className="text-slate-500 text-xs mt-1.5 text-center font-medium">
             Generate high-performing YouTube Shorts instantly.
           </p>
         </div>
 
         {/* TAB NAVIGATION */}
-        <div className="flex bg-slate-950/80 p-1 rounded-lg border border-slate-800/60 mb-6">
+        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/60 mb-6">
           <button
             type="button"
             onClick={() => { setIsLogin(true); useAppStore.setState({ authError: null }); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
-              isLogin ? 'bg-violet-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              isLogin ? 'bg-white text-violet-600 shadow-sm border border-slate-200/30' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             LOGIN
@@ -89,8 +89,8 @@ export default function Auth() {
           <button
             type="button"
             onClick={() => { setIsLogin(false); useAppStore.setState({ authError: null }); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
-              !isLogin ? 'bg-violet-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              !isLogin ? 'bg-white text-violet-600 shadow-sm border border-slate-200/30' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             SIGNUP
@@ -99,8 +99,8 @@ export default function Auth() {
 
         {/* ERROR DISPLAY */}
         {authError && (
-          <div className="mb-4 p-3 bg-red-950/30 border border-red-900/40 rounded-xl flex items-center gap-3 text-red-400 text-xs">
-            <ShieldAlert size={16} className="shrink-0" />
+          <div className="mb-4 p-3.5 bg-red-50 border border-red-150 rounded-xl flex items-center gap-3 text-red-600 text-xs shadow-sm font-semibold">
+            <ShieldAlert size={16} className="shrink-0 text-red-500" />
             <span>{authError}</span>
           </div>
         )}
@@ -109,53 +109,53 @@ export default function Auth() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">
                 Full Name
               </label>
               <div className="relative">
-                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="John Doe"
                   required={!isLogin}
-                  className="w-full bg-slate-950/80 border border-slate-800/80 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-violet-500 transition-colors"
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-violet-500 focus:bg-white transition-all duration-200"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">
               Email Address
             </label>
             <div className="relative">
-              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="john@example.com"
                 required
-                className="w-full bg-slate-950/80 border border-slate-800/80 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-violet-500 transition-colors"
+                className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-violet-500 focus:bg-white transition-all duration-200"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">
               Password
             </label>
             <div className="relative">
-              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full bg-slate-950/80 border border-slate-800/80 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-violet-500 transition-colors"
+                className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-violet-500 focus:bg-white transition-all duration-200"
               />
             </div>
           </div>
@@ -163,7 +163,7 @@ export default function Auth() {
           <button
             type="submit"
             disabled={isAuthLoading}
-            className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:from-slate-800 disabled:to-slate-800 text-white font-bold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-violet-500/10 hover:shadow-violet-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 mt-2"
+            className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:from-slate-200 disabled:to-slate-200 text-white font-bold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-violet-500/10 hover:shadow-violet-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
           >
             {isAuthLoading ? (
               <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -176,14 +176,14 @@ export default function Auth() {
           </button>
 
           <div className="relative my-6 flex items-center justify-center">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800/80"></div></div>
-            <span className="relative px-3 bg-slate-900/40 text-[10px] text-slate-500 font-bold uppercase tracking-wider">or</span>
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200/80"></div></div>
+            <span className="relative px-3 bg-white text-[10px] text-slate-400 font-bold uppercase tracking-wider">or</span>
           </div>
 
           <button
             type="button"
             onClick={() => window.location.href = `${BACKEND_URL}/api/auth/google`}
-            className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/60 text-slate-200 font-bold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-3"
+            className="w-full bg-white border border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-700 font-bold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-3 shadow-sm cursor-pointer"
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />

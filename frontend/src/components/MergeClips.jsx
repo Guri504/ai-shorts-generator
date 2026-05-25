@@ -160,13 +160,13 @@ export default function MergeClips() {
   return (
     <div className="max-w-4xl mx-auto py-6 px-4 space-y-8">
       {/* Header Board */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-950/40 p-6 rounded-2xl border border-slate-900/60 backdrop-blur-md">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight mb-2 text-slate-100 flex items-center gap-2">
-            <Layers className="text-violet-500 animate-pulse" />
+          <h1 className="text-3xl font-extrabold tracking-tight mb-2 text-slate-800 flex items-center gap-2">
+            <Layers className="text-violet-600 animate-pulse" />
             Merge Video Clips
           </h1>
-          <p className="text-slate-400 text-sm">
+          <p className="text-slate-500 text-sm">
             Upload multiple video clips with audio, rearrange them, and stitch them seamlessly using FFmpeg.
           </p>
         </div>
@@ -175,7 +175,7 @@ export default function MergeClips() {
             variant="bordered"
             onClick={clearAll}
             disabled={isMerging}
-            className="text-slate-400 border-slate-800 hover:border-red-500/40 hover:text-red-400 font-semibold"
+            className="text-slate-500 border-slate-200 hover:border-red-500/40 hover:text-red-600 font-semibold"
           >
             Clear Screen
           </Button>
@@ -188,7 +188,7 @@ export default function MergeClips() {
         <div className="md:col-span-7 space-y-6">
 
           {/* Uploader Card */}
-          <Card className="glow-card border-none bg-slate-950/60 p-5">
+          <Card className="glow-card border-none bg-white p-6 shadow-md rounded-3xl">
             <input
               type="file"
               ref={fileInputRef}
@@ -204,20 +204,20 @@ export default function MergeClips() {
               onDragLeave={handleDrag}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300 ${dragActive
-                  ? 'border-violet-500 bg-violet-950/20'
-                  : 'border-slate-800 hover:border-violet-500/50 bg-slate-950/40'
+              className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 ${dragActive
+                  ? 'border-violet-500 bg-violet-50/50'
+                  : 'border-slate-200 hover:border-violet-500/50 bg-slate-50/30'
                 }`}
             >
               <div className="flex flex-col items-center gap-3">
-                <div className="h-12 w-12 bg-violet-600/10 text-violet-500 rounded-full flex items-center justify-center border border-violet-500/20">
+                <div className="h-12 w-12 bg-violet-50 text-violet-600 rounded-full flex items-center justify-center border border-violet-100">
                   <Upload size={22} className={isMerging ? 'animate-bounce' : ''} />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-200">
-                    Drag and drop your video clips here, or <span className="text-violet-400 hover:underline">browse</span>
+                  <p className="text-sm font-bold text-slate-800">
+                    Drag and drop your video clips here, or <span className="text-violet-600 hover:underline">browse</span>
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     Supports MP4, WebM, MOV clips. Normalizes automatically.
                   </p>
                 </div>
@@ -228,7 +228,7 @@ export default function MergeClips() {
           {/* Clips List */}
           {selectedClips.length > 0 && (
             <div className="space-y-4">
-              <h3 className="font-extrabold text-sm text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <h3 className="font-extrabold text-sm text-slate-450 uppercase tracking-wider flex items-center gap-2">
                 📂 Clips Playlist ({selectedClips.length})
               </h3>
 
@@ -236,10 +236,10 @@ export default function MergeClips() {
                 {selectedClips.map((clip, index) => (
                   <div
                     key={clip.id}
-                    className="flex items-center gap-4 bg-slate-950/40 border border-slate-900 rounded-xl p-3 hover:border-slate-800 transition-colors"
+                    className="flex items-center gap-4 bg-white border border-slate-205 rounded-2xl p-3.5 hover:border-violet-300 hover:shadow-sm transition-all duration-200"
                   >
                     {/* Small vertical video preview */}
-                    <div className="h-16 w-12 bg-black rounded overflow-hidden shrink-0 border border-slate-850">
+                    <div className="h-16 w-12 bg-black rounded-lg overflow-hidden shrink-0 border border-slate-200">
                       <video
                         src={clip.localUrl}
                         className="h-full w-full object-cover"
@@ -252,10 +252,10 @@ export default function MergeClips() {
 
                     {/* Meta info */}
                     <div className="flex-grow min-w-0">
-                      <p className="text-xs font-bold text-slate-200 truncate" title={clip.name}>
+                      <p className="text-xs font-bold text-slate-800 truncate" title={clip.name}>
                         {clip.name}
                       </p>
-                      <span className="text-[10px] text-slate-500 font-mono">
+                      <span className="text-[10px] text-slate-400 font-mono">
                         Size: {clip.size} • Hover to preview
                       </span>
                     </div>
@@ -268,7 +268,7 @@ export default function MergeClips() {
                         variant="light"
                         onClick={() => moveClip(index, -1)}
                         disabled={index === 0 || isMerging}
-                        className="hover:bg-slate-900 text-slate-400 disabled:opacity-30"
+                        className="hover:bg-slate-100 text-slate-500 disabled:opacity-30 rounded-lg"
                       >
                         <ArrowUp size={14} />
                       </Button>
@@ -279,7 +279,7 @@ export default function MergeClips() {
                         variant="light"
                         onClick={() => moveClip(index, 1)}
                         disabled={index === selectedClips.length - 1 || isMerging}
-                        className="hover:bg-slate-900 text-slate-400 disabled:opacity-30"
+                        className="hover:bg-slate-100 text-slate-500 disabled:opacity-30 rounded-lg"
                       >
                         <ArrowDown size={14} />
                       </Button>
@@ -291,7 +291,7 @@ export default function MergeClips() {
                         variant="light"
                         onClick={() => removeClip(clip.id, clip.localUrl)}
                         disabled={isMerging}
-                        className="hover:bg-red-950/20 text-red-400 hover:text-red-300"
+                        className="hover:bg-red-50 text-red-500 hover:text-red-600 rounded-lg"
                       >
                         <Trash2 size={14} />
                       </Button>
@@ -307,7 +307,7 @@ export default function MergeClips() {
                 onClick={handleMerge}
                 isLoading={isMerging}
                 disabled={selectedClips.length < 2 || isMerging}
-                className="w-full font-bold shadow-lg shadow-violet-500/20 bg-violet-600 hover:bg-violet-700 py-6 mt-4"
+                className="w-full font-bold shadow-lg shadow-violet-500/20 bg-violet-600 hover:bg-violet-700 py-6 mt-4 rounded-xl text-white"
                 endContent={!isMerging && <Sparkles size={18} />}
               >
                 {isMerging ? 'Stitching clips together...' : `Merge ${selectedClips.length} Video Clips`}
@@ -321,27 +321,27 @@ export default function MergeClips() {
 
           {/* Progress / Merge status Panel */}
           {isMerging && (
-            <Card className="glow-card border-none bg-slate-950/60 p-5 space-y-4 text-center">
-              <div className="h-14 w-14 bg-violet-900/10 text-violet-500 rounded-full flex items-center justify-center mx-auto border border-violet-850 relative">
-                <div className="absolute inset-0 rounded-full border-t-2 border-violet-500 animate-spin" />
+            <Card className="glow-card border-none bg-white p-6 shadow-md rounded-3xl space-y-4 text-center border border-slate-100">
+              <div className="h-14 w-14 bg-violet-50 text-violet-600 rounded-full flex items-center justify-center mx-auto border border-violet-100 relative">
+                <div className="absolute inset-0 rounded-full border-t-2 border-violet-600 animate-spin" />
                 <Layers size={20} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-200">Processing Clips</h3>
+                <h3 className="text-base font-bold text-slate-800">Processing Clips</h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">Merging segment layouts and rendering output...</p>
               </div>
 
               <div className="space-y-1">
                 <ProgressBar value={mergeProgress} className="w-full">
-                  <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                  <div className="flex justify-between text-[10px] text-slate-500 mb-1">
                     <span>Progress</span>
-                    <ProgressBar.Output className="font-bold text-violet-400" />
+                    <ProgressBar.Output className="font-bold text-violet-600" />
                   </div>
-                  <ProgressBar.Track className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden">
+                  <ProgressBar.Track className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                     <ProgressBar.Fill className="h-full bg-violet-600 rounded-full transition-all duration-300" />
                   </ProgressBar.Track>
                 </ProgressBar>
-                <p className="text-[10px] text-slate-400 truncate italic font-medium mt-1.5">
+                <p className="text-[10px] text-slate-550 truncate italic font-medium mt-1.5">
                   &gt; {statusMessage}
                 </p>
               </div>
@@ -350,8 +350,8 @@ export default function MergeClips() {
 
           {/* Error Message */}
           {errorMsg && (
-            <div className="p-4 bg-red-950/40 border border-red-800/40 text-red-400 rounded-xl text-xs font-semibold flex gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="p-4 bg-red-50 border border-red-150 text-red-600 rounded-xl text-xs font-semibold flex gap-2 shadow-sm">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-red-500" />
               <p>{errorMsg}</p>
             </div>
           )}
@@ -364,7 +364,7 @@ export default function MergeClips() {
               </h3>
 
               {/* Vertical Simulator Video Container */}
-              <div className="shorts-container relative border border-slate-900">
+              <div className="shorts-container relative border border-slate-200 rounded-3xl overflow-hidden shadow-md max-w-[280px] mx-auto">
                 <video
                   src={finalVideoUrl}
                   className="w-full h-full object-cover"
@@ -374,26 +374,25 @@ export default function MergeClips() {
                 />
               </div>
 
-              <Card className="glow-card border-none bg-slate-950/60 p-4">
+              <Card className="glow-card border-none bg-white p-5 shadow-md rounded-3xl border border-slate-100">
                 <div className="space-y-3">
-                  <div className="bg-green-950/20 border border-green-900/30 rounded-xl p-3 flex gap-2 text-green-400 text-xs font-semibold">
-                    <Check className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="bg-green-50 border border-green-150 rounded-xl p-3 flex gap-2 text-green-600 text-xs font-semibold">
+                    <Check className="h-4 w-4 shrink-0 mt-0.5 text-green-500" />
                     <span>Video merged successfully! Check details below.</span>
                   </div>
 
-                  <div className="text-[11px] font-mono text-slate-400 bg-slate-900/50 p-2.5 rounded-lg border border-slate-850">
-                    💾 File: <span className="text-slate-200">{mergedFilename}</span>
+                  <div className="text-[11px] font-mono text-slate-500 bg-slate-55 p-2.5 rounded-lg border border-slate-200/80">
+                    💾 File: <span className="text-slate-800">{mergedFilename}</span>
                   </div>
 
-                  <Button
-                    as="a"
+                  <a
                     href={downloadUrl}
-                    download="merged_video.mp4"
-                    color="success"
-                    className="w-full font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/10 text-white bg-emerald-600 hover:bg-emerald-700 py-5"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/10 text-white bg-emerald-600 hover:bg-emerald-700 py-3 rounded-xl transition duration-200 text-sm"
                   >
                     <Download size={18} /> Download Merged Video
-                  </Button>
+                  </a>
                 </div>
               </Card>
             </div>
@@ -401,12 +400,12 @@ export default function MergeClips() {
 
           {/* Placeholder Board if no clips or merged file */}
           {!mergedFilename && !isMerging && (
-            <Card className="border border-slate-900/60 bg-slate-950/30 p-8 text-center">
-              <div className="h-12 w-12 bg-slate-900/60 rounded-full flex items-center justify-center mx-auto mb-4 text-violet-400/80 border border-violet-950">
+            <Card className="border border-slate-200 bg-white shadow-sm p-8 text-center rounded-3xl">
+              <div className="h-12 w-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-violet-500 border border-slate-100">
                 <Film size={22} />
               </div>
-              <h4 className="text-sm font-bold text-slate-300">Stitch Dashboard</h4>
-              <p className="text-xs text-slate-500 max-w-[240px] mx-auto mt-1 leading-relaxed">
+              <h4 className="text-sm font-bold text-slate-800">Stitch Dashboard</h4>
+              <p className="text-xs text-slate-400 max-w-[240px] mx-auto mt-1 leading-relaxed">
                 Add video clips, arrange them in your preferred order, and trigger compilation to see the final combined preview.
               </p>
             </Card>
@@ -416,4 +415,5 @@ export default function MergeClips() {
       </div>
     </div>
   );
+
 }

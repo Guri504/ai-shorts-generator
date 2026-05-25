@@ -4,6 +4,7 @@ import { voiceController } from '../controllers/voiceController.js';
 import { authController } from '../controllers/authController.js';
 import { assetController } from '../controllers/assetController.js';
 import { mergeController } from '../controllers/mergeController.js';
+import { thumbnailController } from '../controllers/thumbnailController.js';
 import { verifyToken } from '../middlewares/authMiddleware.js';
 import { verifyProjectOwnership } from '../middlewares/ownershipMiddleware.js';
 import { youtubeService } from '../services/youtubeService.js';
@@ -161,5 +162,12 @@ router.post('/merge-clips', verifyToken, upload.array('clips', 10), mergeControl
 router.post('/replace-audio', verifyToken, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'audio', maxCount: 1 }]), mergeController.replaceAudio);
 router.post('/trim-audio', verifyToken, upload.single('audio'), mergeController.trimAudio);
 router.get('/assets/merged/:filename', verifyToken, mergeController.getMergedAsset);
+// -------------------------------------------------------------
+// AI Thumbnail Studio Endpoints (Protected)
+// -------------------------------------------------------------
+router.post('/thumbnails/generate', verifyToken, thumbnailController.generateThumbnail);
+router.post('/thumbnails/edit', verifyToken, thumbnailController.editThumbnail);
+router.get('/thumbnails/history', verifyToken, thumbnailController.getThumbnailHistory);
+router.get('/assets/thumbnails/:id/:version', verifyToken, thumbnailController.getThumbnailAsset);
 
 export default router;

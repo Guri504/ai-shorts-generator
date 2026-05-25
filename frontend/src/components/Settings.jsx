@@ -83,27 +83,27 @@ export default function Settings() {
 
   return (
     <div className="max-w-4xl mx-auto py-6 px-4">
-      <h1 className="text-3xl font-extrabold tracking-tight mb-2 flex items-center gap-2">
-        <Key className="text-violet-500 h-8 w-8" />
+      <h1 className="text-3xl font-extrabold tracking-tight mb-2 flex items-center gap-2 text-slate-800">
+        <Key className="text-violet-600 h-8 w-8" />
         Application Settings
       </h1>
-      <p className="text-slate-400 mb-8">
-        Configure your AI API keys and search indexes. These keys are stored locally in your <code className="bg-slate-900 px-1 py-0.5 rounded text-violet-400">.env</code> file.
+      <p className="text-slate-500 mb-8 text-sm">
+        Configure your AI API keys and search indexes. These keys are stored locally in your <code className="bg-slate-100 px-1.5 py-0.5 rounded text-violet-600 font-mono text-xs">.env</code> file.
       </p>
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* Gemini Settings Card */}
-        <Card className="glow-card border-none bg-slate-950/60 p-2">
-          <Card.Header className="flex justify-between items-start">
+        <Card className="glow-card border border-slate-100 bg-white p-5 shadow-sm rounded-3xl">
+          <Card.Header className="flex justify-between items-start p-0 pb-4">
             <div className="flex flex-col">
-              <span className="text-lg font-bold flex items-center gap-2">
+              <span className="text-lg font-bold flex items-center gap-2 text-slate-800">
                 Google Gemini API Key
                 {settings.hasGeminiKey ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-950 text-green-400 border border-green-800">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-600 border border-green-200">
                     Active
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-950 text-red-400 border border-red-800">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-650 border border-red-200">
                     Missing
                   </span>
                 )}
@@ -115,25 +115,25 @@ export default function Settings() {
             <Link 
               isExternal
               href="https://aistudio.google.com/"
-              className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+              className="text-xs text-violet-600 hover:text-violet-750 font-bold flex items-center gap-1"
             >
               <HelpCircle size={14} /> Get Key from AI Studio
             </Link>
           </Card.Header>
-          <Card.Content className="py-2">
+          <Card.Content className="py-2 px-0">
             <div className="flex flex-col gap-1.5 w-full">
-              <label className="text-xs font-semibold text-slate-400">GEMINI_API_KEY</label>
-              <InputGroup className="flex items-center border border-slate-800 rounded-lg bg-slate-950 px-3 py-2 focus-within:border-violet-500 transition-colors w-full">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">GEMINI_API_KEY</label>
+              <InputGroup className="flex items-center border border-slate-200 rounded-xl bg-slate-50/50 px-4 py-2.5 focus-within:border-violet-500 focus-within:bg-white transition-all w-full">
                 <InputGroup.Input
                   type={showGemini ? "text" : "password"}
                   placeholder="AIzaSy..."
                   value={geminiKey}
                   onChange={(e) => setGeminiKey(e.target.value)}
-                  className="bg-transparent border-none outline-none flex-grow text-slate-100 placeholder-slate-500 text-sm w-full"
+                  className="bg-transparent border-none outline-none flex-grow text-slate-800 placeholder-slate-400 text-xs w-full"
                 />
                 <InputGroup.Suffix className="flex items-center pl-2">
-                  <button type="button" onClick={() => setShowGemini(!showGemini)} className="text-slate-400 hover:text-slate-200 focus:outline-none">
-                    {showGemini ? <EyeOff size={20} /> : <Eye size={20} />}
+                  <button type="button" onClick={() => setShowGemini(!showGemini)} className="text-slate-400 hover:text-slate-600 focus:outline-none">
+                    {showGemini ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </InputGroup.Suffix>
               </InputGroup>
@@ -142,17 +142,17 @@ export default function Settings() {
         </Card>
 
         {/* Pexels Settings Card */}
-        <Card className="glow-card border-none bg-slate-950/60 p-2">
-          <Card.Header className="flex justify-between items-start">
+        <Card className="glow-card border border-slate-100 bg-white p-5 shadow-sm rounded-3xl">
+          <Card.Header className="flex justify-between items-start p-0 pb-4">
             <div className="flex flex-col">
-              <span className="text-lg font-bold flex items-center gap-2">
+              <span className="text-lg font-bold flex items-center gap-2 text-slate-800">
                 Pexels Stock Video API Key
                 {settings.hasPexelsKey ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-950 text-green-400 border border-green-800">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-600 border border-green-200">
                     Active
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-950 text-yellow-400 border border-yellow-800">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200">
                     Fallback Mode
                   </span>
                 )}
@@ -164,25 +164,25 @@ export default function Settings() {
             <Link 
               isExternal
               href="https://www.pexels.com/api/"
-              className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+              className="text-xs text-violet-600 hover:text-violet-750 font-bold flex items-center gap-1"
             >
               <HelpCircle size={14} /> Get Key from Pexels
             </Link>
           </Card.Header>
-          <Card.Content className="py-2">
+          <Card.Content className="py-2 px-0">
             <div className="flex flex-col gap-1.5 w-full">
-              <label className="text-xs font-semibold text-slate-400">PEXELS_API_KEY</label>
-              <InputGroup className="flex items-center border border-slate-800 rounded-lg bg-slate-950 px-3 py-2 focus-within:border-violet-500 transition-colors w-full">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">PEXELS_API_KEY</label>
+              <InputGroup className="flex items-center border border-slate-200 rounded-xl bg-slate-50/50 px-4 py-2.5 focus-within:border-violet-500 focus-within:bg-white transition-all w-full">
                 <InputGroup.Input
                   type={showPexels ? "text" : "password"}
                   placeholder="Paste your Pexels developer key here"
                   value={pexelsKey}
                   onChange={(e) => setPexelsKey(e.target.value)}
-                  className="bg-transparent border-none outline-none flex-grow text-slate-100 placeholder-slate-500 text-sm w-full"
+                  className="bg-transparent border-none outline-none flex-grow text-slate-800 placeholder-slate-400 text-xs w-full"
                 />
                 <InputGroup.Suffix className="flex items-center pl-2">
-                  <button type="button" onClick={() => setShowPexels(!showPexels)} className="text-slate-400 hover:text-slate-200 focus:outline-none">
-                    {showPexels ? <EyeOff size={20} /> : <Eye size={20} />}
+                  <button type="button" onClick={() => setShowPexels(!showPexels)} className="text-slate-400 hover:text-slate-600 focus:outline-none">
+                    {showPexels ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </InputGroup.Suffix>
               </InputGroup>
@@ -191,17 +191,17 @@ export default function Settings() {
         </Card>
 
         {/* Pixabay Settings Card */}
-        <Card className="glow-card border-none bg-slate-950/60 p-2">
-          <Card.Header className="flex justify-between items-start">
+        <Card className="glow-card border border-slate-100 bg-white p-5 shadow-sm rounded-3xl">
+          <Card.Header className="flex justify-between items-start p-0 pb-4">
             <div className="flex flex-col">
-              <span className="text-lg font-bold flex items-center gap-2">
+              <span className="text-lg font-bold flex items-center gap-2 text-slate-800">
                 Pixabay API Key (Optional Fallback)
                 {settings.hasPixabayKey ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-950 text-green-400 border border-green-800">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-600 border border-green-200">
                     Active
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-400 border border-slate-200">
                     Inactive
                   </span>
                 )}
@@ -213,25 +213,25 @@ export default function Settings() {
             <Link 
               isExternal
               href="https://pixabay.com/api/docs/"
-              className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+              className="text-xs text-violet-600 hover:text-violet-750 font-bold flex items-center gap-1"
             >
               <HelpCircle size={14} /> Get Key from Pixabay
             </Link>
           </Card.Header>
-          <Card.Content className="py-2">
+          <Card.Content className="py-2 px-0">
             <div className="flex flex-col gap-1.5 w-full">
-              <label className="text-xs font-semibold text-slate-400">PIXABAY_API_KEY</label>
-              <InputGroup className="flex items-center border border-slate-800 rounded-lg bg-slate-950 px-3 py-2 focus-within:border-violet-500 transition-colors w-full">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">PIXABAY_API_KEY</label>
+              <InputGroup className="flex items-center border border-slate-200 rounded-xl bg-slate-50/50 px-4 py-2.5 focus-within:border-violet-500 focus-within:bg-white transition-all w-full">
                 <InputGroup.Input
                   type={showPixabay ? "text" : "password"}
                   placeholder="Optional Pixabay API key"
                   value={pixabayKey}
                   onChange={(e) => setPixabayKey(e.target.value)}
-                  className="bg-transparent border-none outline-none flex-grow text-slate-100 placeholder-slate-500 text-sm w-full"
+                  className="bg-transparent border-none outline-none flex-grow text-slate-800 placeholder-slate-400 text-xs w-full"
                 />
                 <InputGroup.Suffix className="flex items-center pl-2">
-                  <button type="button" onClick={() => setShowPixabay(!showPixabay)} className="text-slate-400 hover:text-slate-200 focus:outline-none">
-                    {showPixabay ? <EyeOff size={20} /> : <Eye size={20} />}
+                  <button type="button" onClick={() => setShowPixabay(!showPixabay)} className="text-slate-400 hover:text-slate-600 focus:outline-none">
+                    {showPixabay ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </InputGroup.Suffix>
               </InputGroup>
@@ -241,15 +241,15 @@ export default function Settings() {
 
         {/* Alerts and feedback */}
         {saveStatus === 'success' && (
-          <div className="p-4 bg-green-950 border border-green-800 rounded-lg flex items-center gap-2 text-green-400 text-sm">
-            <CheckCircle2 size={20} />
+          <div className="p-4 bg-green-50 border border-green-150 rounded-2xl flex items-center gap-2 text-green-600 text-sm font-semibold shadow-sm">
+            <CheckCircle2 size={20} className="text-green-500" />
             Settings saved successfully! Runtime environment reloaded.
           </div>
         )}
 
         {saveStatus === 'error' && (
-          <div className="p-4 bg-red-950 border border-red-800 rounded-lg flex items-center gap-2 text-red-400 text-sm">
-            <AlertCircle size={20} />
+          <div className="p-4 bg-red-50 border border-red-150 rounded-2xl flex items-center gap-2 text-red-600 text-sm font-semibold shadow-sm">
+            <AlertCircle size={20} className="text-red-500" />
             Failed to save settings: {errorMsg}
           </div>
         )}
@@ -260,7 +260,7 @@ export default function Settings() {
             type="submit" 
             color="secondary" 
             isLoading={isSaving}
-            className="px-6 py-4 font-bold flex items-center gap-2 shadow-lg shadow-violet-500/20 bg-violet-600 hover:bg-violet-700"
+            className="px-6 py-5 font-bold flex items-center gap-2 shadow-lg shadow-violet-500/20 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs uppercase tracking-wider"
           >
             {!isSaving && <Save size={18} />}
             Save API Settings
@@ -270,45 +270,45 @@ export default function Settings() {
 
       {/* YouTube Accounts Section */}
       <div className="mt-12 space-y-6">
-        <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2">
-          <Youtube className="text-red-500 h-7 w-7" />
+        <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2 text-slate-800">
+          <Youtube className="text-red-650 h-7 w-7" />
           YouTube Integrations
         </h2>
-        <p className="text-slate-400 text-sm">
+        <p className="text-slate-500 text-sm">
           Connect your YouTube channels to enable one-click publishing of your rendered vertical short videos.
         </p>
 
-        <Card className="glow-card border-none bg-slate-950/60 p-4">
+        <Card className="glow-card border border-slate-100 bg-white p-5 shadow-sm rounded-3xl">
           <Card.Header className="flex justify-between items-center p-0 pb-4">
-            <span className="font-bold text-base">Connected Channels</span>
+            <span className="font-extrabold text-base text-slate-800">Connected Channels</span>
             <Button
               size="sm"
               color="danger"
               onClick={connectYouTube}
-              className="bg-red-600 hover:bg-red-700 font-bold flex items-center gap-1.5 rounded-lg px-4"
+              className="bg-red-600 hover:bg-red-700 text-white font-bold flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs uppercase tracking-wider"
             >
               <Plus size={14} /> Link New Channel
             </Button>
           </Card.Header>
           <Card.Content className="p-0 space-y-3">
             {youtubeAccounts.length === 0 ? (
-              <div className="text-center py-8 text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+              <div className="text-center py-8 text-slate-400 text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/30">
                 No YouTube channels linked to this account. Link a channel to get started.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {youtubeAccounts.map((acc) => (
-                  <div key={acc._id || acc.channelId} className="flex items-center justify-between p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl">
+                  <div key={acc._id || acc.channelId} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200/80 rounded-2xl">
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="h-10 w-10 bg-red-600/10 text-red-500 rounded-lg flex items-center justify-center font-bold">
+                      <div className="h-10 w-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center font-bold">
                         📺
                       </div>
                       <div className="flex flex-col overflow-hidden">
-                        <span className="font-bold text-sm text-slate-200 truncate">{acc.channelName}</span>
-                        <span className="text-[10px] text-slate-500 truncate">{acc.email}</span>
+                        <span className="font-bold text-sm text-slate-800 truncate">{acc.channelName}</span>
+                        <span className="text-[10px] text-slate-400 truncate">{acc.email}</span>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-950 text-green-400 border border-green-900/30">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-green-50 text-green-600 border border-green-200/50">
                       Connected
                     </span>
                   </div>
