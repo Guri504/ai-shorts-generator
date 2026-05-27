@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { ttsService } from '../services/ttsService.js';
 import { env } from '../config/env.js';
@@ -71,11 +72,31 @@ export const voiceController = {
       setTimeout(cleanupOldPreviews, 1000);
 
       const previewText = text || 'Hello, this is a preview of the selected AI voice.';
-      const previewId = uuidv4().substring(0, 8);
-      const previewFileName = `preview_${previewId}.mp3`;
+      
+      // Generate a stable hash of parameters to serve as cache key
+      const key = `${voiceName}_${speed}_${pitch}_${volume}_${previewText}`;
+      const hash = crypto.createHash('md5').update(key).digest('hex').substring(0, 12);
+      const previewFileName = `preview_${hash}.mp3`;
       const outputPath = path.join(PREVIEW_DIR, previewFileName);
 
-      // Synthesize short audio
+      // Serve instantly if cached file exists
+      if (fs.existsSync(outputPath)) {
+        console.log(`[Voice Controller] Serving cached voice preview: ${previewFileName}`);
+        try {
+          const now = new Date();
+          fs.utimesSync(outputPath, now, now); // Update modified time to prevent deletion
+        } catch (utimeErr) {
+          // Silent fallback if filesystem doesn't support times update
+        }
+        return res.json({
+          success: true,
+          previewUrl: `/previews/${previewFileName}`,
+          voiceName,
+          text: previewText
+        });
+      }
+
+      // Synthesize audio
       await ttsService.synthesize(previewText, voiceName, outputPath, {
         speed: parseFloat(speed),
         pitch,

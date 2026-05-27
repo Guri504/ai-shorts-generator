@@ -5,17 +5,21 @@ import { useAppStore } from '../store/appStore';
 import Dashboard from '../components/Dashboard';
 import Generator from '../components/Generator';
 import Editor from '../components/Editor';
-import Settings from '../components/Settings';
+import SocialMedia from '../components/SocialMedia';
 import Auth from '../components/Auth';
 import MergeClips from '../components/MergeClips';
 import ReplaceAudio from '../components/ReplaceAudio';
 import TrimAudio from '../components/TrimAudio';
 import ThumbnailStudio from '../components/ThumbnailStudio';
-import { Video, Film, Key, AlertTriangle, Coins, LogOut, User, Layers, Music, Scissors, Image, Search, Bell, Menu, X } from 'lucide-react';
+import YoutubeShortsGenerator from '../components/YoutubeShortsGenerator';
+import InstagramReelsGenerator from '../components/InstagramReelsGenerator';
+import LinkedinPostGenerator from '../components/LinkedinPostGenerator';
+import { Video, Film, Key, AlertTriangle, Coins, LogOut, User, Layers, Music, Scissors, Image, Search, Bell, Menu, X, LayoutGrid, Share2 } from 'lucide-react';
+import { Popover, Button } from '@heroui/react';
 
 export default function Page() {
   const [mounted, setMounted] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAppsOpen, setIsAppsOpen] = useState(false);
   const {
     activeTab,
     setActiveTab,
@@ -59,10 +63,16 @@ export default function Page() {
         return <Dashboard />;
       case 'generator':
         return <Generator />;
+      case 'youtube-shorts':
+        return <YoutubeShortsGenerator />;
+      case 'instagram-reels':
+        return <InstagramReelsGenerator />;
+      case 'linkedin-post':
+        return <LinkedinPostGenerator />;
       case 'editor':
         return <Editor />;
-      case 'settings':
-        return <Settings />;
+      case 'social-media':
+        return <SocialMedia />;
       case 'merge-clips':
         return <MergeClips />;
       case 'replace-audio':
@@ -76,240 +86,210 @@ export default function Page() {
     }
   };
 
+  const apps = [
+    { id: 'dashboard', name: 'My Videos', icon: Video, color: 'text-blue-500 bg-blue-50/70' },
+    { id: 'generator', name: 'Create Video', icon: Film, color: 'text-violet-500 bg-violet-50/70' },
+    { id: 'youtube-shorts', name: 'YouTube Shorts', icon: Video, color: 'text-red-500 bg-red-50/20' },
+    { id: 'instagram-reels', name: 'Instagram Reels', icon: Film, color: 'text-pink-555 bg-pink-50/70' },
+    { id: 'linkedin-post', name: 'LinkedIn Post', icon: Layers, color: 'text-blue-400 bg-blue-50/70' },
+    { id: 'merge-clips', name: 'Merge Clips', icon: Layers, color: 'text-emerald-500 bg-emerald-50/70' },
+    { id: 'replace-audio', name: 'Replace Audio', icon: Music, color: 'text-pink-500 bg-pink-50/70' },
+    { id: 'trim-audio', name: 'Trim Audio', icon: Scissors, color: 'text-amber-500 bg-amber-50/70' },
+    { id: 'thumbnails', name: 'Thumbnail Studio', icon: Image, color: 'text-cyan-500 bg-cyan-50/70' },
+    { id: 'social-media', name: 'Social Media', icon: Share2, color: 'text-rose-500 bg-rose-50/70' },
+  ];
+
   return (
-    <div className="flex flex-col md:flex-row flex-grow min-h-screen md:h-screen md:overflow-hidden bg-slate-50 text-slate-800">
-
-      {/* Mobile Sidebar backdrop */}
-      {isSidebarOpen && (
-        <div
-          onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm md:hidden"
-        />
-      )}
-
-      {/* FIXED LEFT SIDEBAR */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 p-6 flex flex-col justify-between transition-transform duration-300 md:static md:translate-x-0 shrink-0 md:h-screen overflow-y-auto ${
-        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-
-        {/* Top: Logo and items */}
-        <div className="space-y-8">
-          <div className="flex items-center justify-between gap-2.5 px-2">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 bg-violet-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-violet-500/20 font-black">
-                ⚡
-              </div>
-              <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
-                ShortsAI
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsSidebarOpen(false)}
-              className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 md:hidden cursor-pointer"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <nav className="space-y-1">
-            <button
-              onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${activeTab === 'dashboard'
-                  ? 'bg-violet-50 text-violet-600 shadow-sm border border-violet-100/50'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                }`}
-            >
-              <Video size={16} />
-              My Videos
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('generator'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${activeTab === 'generator'
-                  ? 'bg-violet-50 text-violet-600 shadow-sm border border-violet-100/50'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                }`}
-            >
-              <Film size={16} />
-              Create Video
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('merge-clips'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${activeTab === 'merge-clips'
-                  ? 'bg-violet-50 text-violet-600 shadow-sm border border-violet-100/50'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                }`}
-            >
-              <Layers size={16} />
-              Merge Clips
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('replace-audio'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${activeTab === 'replace-audio'
-                  ? 'bg-violet-50 text-violet-600 shadow-sm border border-violet-100/50'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                }`}
-            >
-              <Music size={16} />
-              Replace Audio
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('trim-audio'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${activeTab === 'trim-audio'
-                  ? 'bg-violet-50 text-violet-600 shadow-sm border border-violet-100/50'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                }`}
-            >
-              <Scissors size={16} />
-              Trim Audio
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('thumbnails'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${activeTab === 'thumbnails'
-                  ? 'bg-violet-50 text-violet-600 shadow-sm border border-violet-100/50'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                }`}
-            >
-              <Image size={16} />
-              Thumbnail Studio
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
-              className={`w-full flex justify-between items-center px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${activeTab === 'settings'
-                  ? 'bg-violet-50 text-violet-600 shadow-sm border border-violet-100/50'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                }`}
-            >
-              <span className="flex items-center gap-3">
-                <Key size={16} />
-                API Settings
-              </span>
-              {!settings.hasGeminiKey && (
-                <AlertTriangle size={14} className="text-amber-500 animate-pulse animate-infinite" />
-              )}
-            </button>
-          </nav>
-        </div>
-
-        {/* Bottom Status Panel */}
-        <div className="mt-8 pt-4 border-t border-slate-100 px-1 space-y-4">
-          {/* User Profile Card */}
-          <div className="bg-slate-50/80 border border-slate-200/50 rounded-2xl p-3 space-y-2.5">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-              <div className="h-6 w-6 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center font-black">
-                {user?.name ? user.name[0].toUpperCase() : 'U'}
-              </div>
-              <span className="truncate max-w-[130px]" title={user?.name || user?.email}>{user?.name || user?.email}</span>
-            </div>
-            <div className="text-[10px] text-slate-500 font-semibold flex items-center justify-between">
-              <span>Account Type:</span>
-              <span className="capitalize font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-lg border border-violet-100/55">{user?.plan || 'Free'}</span>
-            </div>
-          </div>
-
-          <div className="space-y-2 text-xs font-semibold">
-            <div className="flex items-center justify-between text-slate-500">
-              <span>Gemini API:</span>
-              {settings.hasGeminiKey ? (
-                <span className="text-emerald-500 font-bold">● Active</span>
-              ) : (
-                <span className="text-red-500 font-bold">● Missing</span>
-              )}
-            </div>
-            <div className="flex items-center justify-between text-slate-500">
-              <span>Pexels Stock:</span>
-              {settings.hasPexelsKey ? (
-                <span className="text-emerald-500 font-bold">● Ready</span>
-              ) : (
-                <span className="text-amber-500 font-bold">● Fallback</span>
-              )}
-            </div>
-          </div>
-
-          <button
-            onClick={logout}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-red-50 border border-red-100 hover:bg-red-100/70 text-red-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
-          >
-            <LogOut size={14} />
-            Logout Session
-          </button>
-        </div>
-      </aside>
+    <div className="flex flex-col flex-grow min-h-screen h-screen overflow-hidden bg-background text-on-background">
 
       {/* MAIN VIEW AREA */}
-      <main className="flex-grow bg-slate-100 flex flex-col h-full md:h-screen overflow-y-auto">
+      <main className="flex-grow bg-background flex flex-col h-full overflow-y-auto">
 
         {/* STICKY TOP NAVIGATION BAR */}
-        <header className="sticky top-0 z-[100] bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-6 py-4 flex items-center justify-between shadow-sm gap-4">
-          {/* Mobile hamburger menu toggle */}
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-800 md:hidden cursor-pointer shrink-0"
-          >
-            <Menu size={20} />
-          </button>
-
-          {/* Search bar */}
-          <div className="relative max-w-xs w-full">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-              <Search size={16} />
-            </span>
-            <input
-              type="text"
-              placeholder="Search scripts, renders, thumbnails..."
-              className="w-full bg-slate-55/60 border border-slate-200 focus:border-violet-500 focus:bg-white rounded-xl pl-9 pr-4 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none transition-all"
-            />
-          </div>
-
-          {/* Right actions */}
-          <div className="flex items-center gap-4">
-            {/* Credits indicator badge */}
-            <div className="flex items-center gap-1.5 bg-amber-50/70 border border-amber-200/60 px-3.5 py-1.5 rounded-xl text-xs font-bold">
-              <Coins size={14} className="text-amber-500" />
-              <span className="text-slate-500">Credits:</span>
-              <span className="text-amber-600">{user?.credits > 9999 ? 'Unlimited' : (user?.credits ?? 0)}</span>
+        <header className="sticky top-0 z-[100] bg-surface-lowest border-b border-outline-variant px-10 h-16 flex justify-between items-center shrink-0">
+          
+          {/* Brand Logo & Switcher & Navigation Links */}
+          <div className="flex items-center gap-6 shrink-0">
+            {/* Logo */}
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-bold tracking-tighter text-white">ShortsAI</span>
             </div>
 
-            {/* Notifications */}
-            <button className="h-8.5 w-8.5 rounded-xl bg-slate-100/50 border border-slate-200/80 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition relative cursor-pointer">
-              <Bell size={16} />
-              <span className="absolute top-2 right-2 h-1.5 w-1.5 bg-violet-600 rounded-full"></span>
-            </button>
+            {/* Workspace Switcher */}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded bg-surface-high border border-outline-variant cursor-pointer hover:bg-surface-highest transition-colors">
+              <span className="font-mono uppercase tracking-wider text-[10px] text-on-surface-variant">Creator Workspace</span>
+            </div>
 
-            {/* Avatar Dropdown wrapper */}
-            <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
-              <div className="h-8.5 w-8.5 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-500 text-white font-extrabold flex items-center justify-center text-sm shadow-md shadow-violet-500/20">
+            {/* Nav Links */}
+            <nav className="hidden md:flex items-center gap-6 ml-8">
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`font-semibold text-[10px] uppercase tracking-widest transition-all duration-200 cursor-pointer pb-1 ${
+                  activeTab === 'dashboard' ? 'text-white border-b-2 border-white' : 'text-on-surface-variant hover:text-white'
+                }`}
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => setActiveTab('generator')}
+                className={`font-semibold text-[10px] uppercase tracking-widest transition-all duration-200 cursor-pointer pb-1 ${
+                  activeTab === 'generator' ? 'text-white border-b-2 border-white' : 'text-on-surface-variant hover:text-white'
+                }`}
+              >
+                Projects
+              </button>
+            </nav>
+          </div>
+
+          {/* Right Header Section */}
+          <div className="flex items-center gap-6">
+            {/* Search */}
+            <div className="relative group hidden lg:block">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">
+                <Search size={16} />
+              </span>
+              <input
+                type="text"
+                placeholder="Search projects..."
+                className="bg-surface-low border border-outline-variant rounded-lg pl-10 pr-4 py-1.5 text-xs text-on-surface w-64 focus:outline-none focus:border-white transition-all placeholder:text-on-surface-variant/50"
+              />
+            </div>
+
+            {/* Right actions */}
+            <div className="flex items-center gap-4">
+              {/* Notifications */}
+              <button className="p-2 text-on-surface-variant hover:text-white transition-colors relative cursor-pointer" title="Notifications">
+                <Bell size={16} />
+                <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-white rounded-full"></span>
+              </button>
+
+              {/* Apps Trigger Popover */}
+              <Popover isOpen={isAppsOpen} onOpenChange={setIsAppsOpen}>
+                <Popover.Trigger>
+                  <Button
+                    variant="light"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-on-surface-variant hover:bg-surface-high rounded transition-colors text-xs font-semibold uppercase tracking-wider cursor-pointer"
+                  >
+                    <LayoutGrid size={16} />
+                    <span className="hidden sm:inline">Apps</span>
+                  </Button>
+                </Popover.Trigger>
+                <Popover.Content className="w-[320px] p-4 bg-surface-highest border border-outline rounded-2xl shadow-xl z-[150] focus:outline-none text-on-surface">
+                  <Popover.Dialog className="outline-none">
+                    {/* Suite Header */}
+                    <div className="px-1 pb-2.5 mb-3 border-b border-outline-variant flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ShortsAI Suite</span>
+                    </div>
+
+                    {/* Apps Grid */}
+                    <div className="grid grid-cols-3 gap-1">
+                      {apps.map((app) => {
+                        const Icon = app.icon;
+                        const isActive = activeTab === app.id;
+                        return (
+                          <button
+                            key={app.id}
+                            onClick={() => {
+                              setActiveTab(app.id);
+                              setIsAppsOpen(false);
+                            }}
+                            className={`group flex flex-col items-center justify-center text-center p-2.5 rounded-xl transition-all duration-200 cursor-pointer border ${
+                              isActive
+                                ? 'bg-surface-high text-white border-outline-variant shadow-sm font-semibold'
+                                : 'border-transparent hover:bg-surface-low text-on-surface-variant hover:text-white'
+                            }`}
+                          >
+                            <div className={`h-11 w-11 rounded-xl flex items-center justify-center mb-1.5 transition-transform duration-200 group-hover:scale-105 relative ${
+                              isActive ? 'bg-surface-container text-white' : 'bg-surface-lowest text-on-surface-variant'
+                            }`}>
+                              <Icon size={20} />
+                              {app.id === 'social-media' && !settings.hasGeminiKey && (
+                                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-amber-500 rounded-full border-2 border-[#353534] flex items-center justify-center animate-pulse" />
+                              )}
+                            </div>
+                            <span className="text-[10px] font-bold tracking-tight line-clamp-2 leading-tight">
+                              {app.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer Account & Status info */}
+                    <div className="pt-3 mt-3 border-t border-outline-variant space-y-3">
+                      {/* User profile card */}
+                      <div className="bg-surface-lowest border border-outline-variant rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-inner">
+                        <div className="flex items-center gap-2 text-xs font-bold text-on-surface">
+                          <div className="h-6.5 w-6.5 rounded-lg bg-surface-high text-white flex items-center justify-center font-black">
+                            {user?.name ? user.name[0].toUpperCase() : 'U'}
+                          </div>
+                          <div className="flex flex-col text-left">
+                            <span className="truncate max-w-[130px] leading-tight text-white" title={user?.name || user?.email}>
+                              {user?.name || user?.email}
+                            </span>
+                            <span className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider leading-none mt-0.5">
+                              {user?.plan || 'Free'}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            logout();
+                            setIsAppsOpen(false);
+                          }}
+                          className="p-1.5 hover:bg-surface-high text-red-400 hover:text-red-300 rounded-lg transition-colors cursor-pointer"
+                          title="Logout Session"
+                        >
+                          <LogOut size={16} />
+                        </button>
+                      </div>
+
+                      {/* Status badges */}
+                      <div className="grid grid-cols-2 gap-2 text-[9px] font-bold text-on-surface-variant bg-surface-lowest p-2 rounded-xl border border-outline-variant">
+                        <div className="flex items-center gap-1.5 justify-center">
+                          <span className={`h-1.5 w-1.5 rounded-full ${settings.hasGeminiKey ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`} />
+                          <span>Gemini: {settings.hasGeminiKey ? 'Active' : 'Missing'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 justify-center">
+                          <span className={`h-1.5 w-1.5 rounded-full ${settings.hasPexelsKey ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                          <span>Pexels: {settings.hasPexelsKey ? 'Ready' : 'Fallback'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Popover.Dialog>
+                </Popover.Content>
+              </Popover>
+
+              {/* Quick Create Button */}
+              <button
+                onClick={() => setActiveTab('generator')}
+                className="bg-white hover:opacity-90 active:scale-95 text-black font-bold px-4 py-1.5 rounded text-xs transition-all cursor-pointer hidden sm:block"
+              >
+                Quick Create
+              </button>
+
+              {/* User Avatar */}
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-outline-variant bg-surface-high flex items-center justify-center font-bold text-white text-xs select-none">
                 {user?.name ? user.name[0].toUpperCase() : 'U'}
-              </div>
-              <div className="hidden md:block text-left">
-                <p className="text-xs font-bold text-slate-800 leading-tight">{user?.name || 'SaaS User'}</p>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{user?.plan || 'Free Plan'}</p>
               </div>
             </div>
           </div>
         </header>
 
         {/* MAIN VIEWPORT CONTENT */}
-        <div className="flex-grow p-4 md:p-8 w-full max-w-7xl mx-auto space-y-6">
+        <div className="flex-grow p-4 md:p-10 w-full max-w-container-max mx-auto space-y-6">
           {/* Global Key Warning Alert Banner */}
-          {!settings.hasGeminiKey && activeTab !== 'settings' && (
-            <div className="w-full p-3 bg-red-50 border border-red-150 rounded-xl flex items-center justify-between text-red-600 text-xs shadow-sm">
+          {!settings.hasGeminiKey && activeTab !== 'social-media' && (
+            <div className="w-full p-3 bg-red-950/20 border border-red-500/20 rounded-xl flex items-center justify-between text-red-400 text-xs shadow-sm">
               <span className="flex items-center gap-2 font-medium">
                 <AlertTriangle size={16} />
                 Setup is incomplete! Gemini API Key is missing.
               </span>
               <button
-                onClick={() => setActiveTab('settings')}
-                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px] uppercase tracking-wider cursor-pointer transition"
+                onClick={() => setActiveTab('social-media')}
+                className="px-3 py-1 bg-white hover:bg-zinc-200 text-black rounded-lg font-bold text-[10px] uppercase tracking-wider cursor-pointer transition"
               >
-                Configure Now
+                View Status
               </button>
             </div>
           )}

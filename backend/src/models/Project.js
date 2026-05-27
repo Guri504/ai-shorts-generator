@@ -95,6 +95,15 @@ const ProjectSchema = new mongoose.Schema({
     intensity: { type: String, default: 'energetic' }
   },
   ctaScene: SceneSchema,
+  subtitleColor: {
+    type: String,
+    default: 'yellow'
+  },
+  platform: {
+    type: String,
+    default: 'general'
+  },
+  platformSettings: mongoose.Schema.Types.Mixed,
   outputPath: String,
   error: String
 }, {

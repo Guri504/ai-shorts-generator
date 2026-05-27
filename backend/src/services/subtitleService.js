@@ -25,15 +25,21 @@ export const subtitleService = {
    * @param {Array} wordTimings - Array of { word, startMs, endMs, durationMs }
    * @param {string} fontName - Font family, defaults to 'Impact' for Shorts look
    * @param {number} fontSize - Font size, defaults to 64
+   * @param {string} subtitleColor - Highlighting color for active word
    * @returns {string} - ASS file content
    */
-  generateAssContent(wordTimings, fontName = 'Impact', fontSize = 72) {
-    // Style settings:
-    // PrimaryColour: White (&H00FFFFFF)
-    // OutlineColour: Black (&H00000000)
-    // BackColour: Black (&H00000000)
-    // Highlight color: Neon Yellow (&H0000FFFF) or Neon Green (&H0033FF33)
-    const highlightColor = '&H0033FF33'; // BGR (Vibrant Neon Green)
+  generateAssContent(wordTimings, fontName = 'Impact', fontSize = 72, subtitleColor = 'yellow') {
+    // Map human-readable colors to ASS BGR Hex strings
+    let highlightColor = '&H0000FFFF&'; // Default Neon Yellow (BGR)
+    if (subtitleColor === 'red') {
+      highlightColor = '&H000000FF&'; // BGR Red
+    } else if (subtitleColor === 'cyan') {
+      highlightColor = '&H00FFFF00&'; // BGR Cyan
+    } else if (subtitleColor === 'white') {
+      highlightColor = '&H00FFFFFF&'; // BGR White
+    } else if (subtitleColor === 'green') {
+      highlightColor = '&H0033FF33&'; // BGR Neon Green
+    }
 
     let ass = `[Script Info]
 ScriptType: v4.00+
@@ -51,7 +57,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     // We loop through word by word and generate an event for each word's duration.
     // To make it look natural, we show a sliding window of words (e.g. 1 word before, active, and 2 words after).
-    // The active word is highlighted in green and animated via scaling tags.
+    // The active word is highlighted and animated via scaling tags.
     for (let i = 0; i < wordTimings.length; i++) {
       const activeWord = wordTimings[i];
       const startStr = formatAssTime(activeWord.startMs);
@@ -64,7 +70,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       for (let j = startWindow; j <= endWindow; j++) {
         const wt = wordTimings[j];
         if (j === i) {
-          sentenceParts.push(wt.word.toUpperCase());
+          // Highlight active word in BGR color
+          sentenceParts.push(`{\\c${highlightColor}}${wt.word.toUpperCase()}{\\c}`);
         } else {
           sentenceParts.push(wt.word.toUpperCase());
         }
@@ -83,9 +90,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
    * Writes the ASS content to a file
    * @param {Array} wordTimings 
    * @param {string} filePath 
+   * @param {string} subtitleColor
    */
-  writeAssFile(wordTimings, filePath) {
-    const content = this.generateAssContent(wordTimings);
+  writeAssFile(wordTimings, filePath, subtitleColor = 'yellow') {
+    const content = this.generateAssContent(wordTimings, 'Impact', 72, subtitleColor);
     fs.writeFileSync(filePath, content, 'utf-8');
     return filePath;
   }

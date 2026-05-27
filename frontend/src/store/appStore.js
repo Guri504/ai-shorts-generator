@@ -3,6 +3,11 @@ import axios from 'axios';
 import { io } from 'socket.io-client';
 
 const getBackendUrl = () => {
+  // Use environment variable for production (set on Vercel)
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // Fallback for local development
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     return `http://${hostname}:5000`;
@@ -88,11 +93,11 @@ export const useAppStore = create((set, get) => ({
   currentProject: null,
   voices: [], 
   youtubeAccounts: [],
+  linkedinAccounts: [],
   settings: {
     hasGeminiKey: false,
     hasPexelsKey: false,
-    hasPixabayKey: false,
-    env: { GEMINI_API_KEY: '', PEXELS_API_KEY: '', PIXABAY_API_KEY: '' }
+    hasPixabayKey: false
   },
   
   // Real-time rendering state
@@ -111,7 +116,7 @@ export const useAppStore = create((set, get) => ({
   isUploadingYouTube: false,
   
   // UI routing/navigation tab
-  activeTab: 'dashboard', // auth, dashboard, generator, editor, settings, merge-clips, replace-audio, trim-audio
+  activeTab: 'dashboard', // auth, dashboard, generator, editor, social-media, merge-clips, replace-audio, trim-audio
   
   // Navigation action
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -164,6 +169,7 @@ export const useAppStore = create((set, get) => ({
       projects: [],
       currentProject: null,
       youtubeAccounts: [],
+      linkedinAccounts: [],
       activeTab: 'dashboard'
     });
   },
@@ -244,17 +250,6 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
-  // Save/update settings
-  saveSettings: async (keys) => {
-    try {
-      await axios.post(`${API_URL}/settings`, keys);
-      await get().fetchSettings();
-      return { success: true };
-    } catch (err) {
-      console.error('Error saving settings:', err);
-      return { success: false, error: err.response?.data?.error || err.message };
-    }
-  },
 
   // Create project & generate script
   createProject: async (formData) => {
@@ -512,6 +507,46 @@ export const useAppStore = create((set, get) => ({
       }
     } catch (err) {
       console.error('Error initiating YouTube OAuth:', err);
+    }
+  },
+
+  // LinkedIn Account Connection Operations
+  fetchLinkedInAccounts: async () => {
+    if (!get().isAuthenticated) return;
+    try {
+      const res = await axios.get(`${API_URL}/linkedin/accounts`);
+      set({ linkedinAccounts: res.data });
+    } catch (err) {
+      console.error('Error fetching LinkedIn accounts:', err);
+    }
+  },
+
+  connectLinkedIn: async () => {
+    try {
+      const res = await axios.get(`${API_URL}/linkedin/auth`);
+      const authUrl = res.data.url;
+      if (authUrl) {
+        // Open authorization window
+        const width = 600, height = 700;
+        const left = (window.innerWidth - width) / 2;
+        const top = (window.innerHeight - height) / 2;
+        const win = window.open(
+          authUrl,
+          'Connect LinkedIn Account',
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+
+        // Monitor if authentication window is closed
+        const timer = setInterval(() => {
+          if (win && win.closed) {
+            clearInterval(timer);
+            // Refresh list
+            get().fetchLinkedInAccounts();
+          }
+        }, 1000);
+      }
+    } catch (err) {
+      console.error('Error initiating LinkedIn OAuth:', err);
     }
   },
 

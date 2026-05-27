@@ -20,7 +20,7 @@ export const geminiService = {
    * @param {string} language - 'english', 'hindi', or 'hinglish'
    * @param {string} durationGoal - e.g. '30s', '60s'
    */
-  async generateScriptAndScenes(topicOrTitle, language = 'hinglish', sceneCount = 5) {
+  async generateScriptAndScenes(topicOrTitle, language = 'hinglish', sceneCount = 5, options = {}) {
     const ai = getAiClient();
     
     // Calculate approximate duration goal based on scene count (~5-6s per scene)
@@ -36,10 +36,31 @@ export const geminiService = {
       langInstruction = 'Write the narration in engaging, premium English with clear vocabulary and a modern tone.';
     }
 
-    const systemPrompt = `You are an elite, viral YouTube Shorts creator and video editor.
+    let platformInstruction = '';
+    if (options.platform === 'youtube') {
+      const selectedNiche = options.niche || 'facts';
+      const selectedHook = options.hookStyle || 'question';
+      const selectedTone = options.tone || 'viral';
+
+      platformInstruction = `
+Target Platform: YouTube Shorts
+Video Niche: ${selectedNiche}
+Video Tone/Vibe: ${selectedTone}
+Initial Hook Style: ${selectedHook}
+
+You must write a script tailored for YouTube Shorts:
+1. In Scene 1, open with a high-retention hook matching the "${selectedHook}" style. For example, if it is a question hook, start with a highly curious question. If it is a shocking hook, start with an unbelievable fact.
+2. Maintain the "${selectedTone}" vibe throughout the narration (e.g., highly energetic and fast-paced, or suspenseful and mysterious).
+3. The script topic should be custom-adapted to the niche "${selectedNiche}". Ensure the facts, stories, or tips generated correspond to this category.
+`;
+    }
+
+    const systemPrompt = `You are an elite, viral vertical video creator and video editor.
 Your task is to take the user's topic/title and write an ultra-engaging short-form video script (~${durationGoal} total).
 You must split this script into EXACTLY ${sceneCount} logical scenes, each lasting 3 to 6 seconds.
 IMPORTANT: Return EXACTLY ${sceneCount} scenes. No more, no less.
+
+${platformInstruction}
 
 For EACH scene, you must decide between two video source types:
 1. "Stock": Use stock footage for generic, common real-world elements, typing, phone usage, office settings, people, generic scenes, cities, or standard nature.
@@ -99,16 +120,50 @@ Target Duration: ${durationGoal}`;
         required: ["title", "description", "hashtags", "bgMusicGenre", "scenes"]
       };
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: userPrompt,
-        config: {
-          systemInstruction: systemPrompt,
-          responseMimeType: 'application/json',
-          responseSchema: responseSchema,
-          temperature: 0.8
+      const callWithRetry = async () => {
+        const modelName = 'gemini-2.5-flash';
+        const retryDelays = [2000, 4000, 6000, 8000]; // Progressive backoff
+        let lastError = null;
+
+        console.log(`[Gemini Service] Attempting script generation using model: ${modelName}`);
+        
+        for (let attempt = 1; attempt <= retryDelays.length + 1; attempt++) {
+          try {
+            const res = await ai.models.generateContent({
+              model: modelName,
+              contents: userPrompt,
+              config: {
+                systemInstruction: systemPrompt,
+                responseMimeType: 'application/json',
+                responseSchema: responseSchema,
+                temperature: 0.8
+              }
+            });
+            
+            if (res && res.text) {
+              console.log(`[Gemini Service] Success with model: ${modelName} on attempt: ${attempt}`);
+              return res;
+            }
+          } catch (err) {
+            lastError = err;
+            const errMsg = err.message || '';
+            const isRateOrUnavailable = errMsg.includes('503') || errMsg.toLowerCase().includes('demand') || errMsg.includes('UNAVAILABLE') || errMsg.includes('429');
+            
+            if (isRateOrUnavailable && attempt <= retryDelays.length) {
+              const delay = retryDelays[attempt - 1];
+              console.warn(`[Gemini Service] Model ${modelName} returned temporary error (attempt ${attempt}/${retryDelays.length + 1}): ${errMsg.substring(0, 120)}... Retrying in ${delay / 1000}s...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            } else {
+              console.error(`[Gemini Service] Model ${modelName} failed:`, errMsg);
+              throw err;
+            }
+          }
         }
-      });
+        
+        throw lastError || new Error(`Failed to generate content using model ${modelName}.`);
+      };
+
+      const response = await callWithRetry();
 
       const responseText = response.text;
       if (!responseText) {

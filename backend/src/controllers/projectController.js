@@ -38,7 +38,12 @@ export const projectController = {
       voicePitch = '+0Hz', 
       voiceVolume = '+0%', 
       musicGenre = 'cinematic', 
-      sceneCount = 5 
+      sceneCount = 5,
+      platform = 'general',
+      niche,
+      hookStyle,
+      tone,
+      subtitleColor = 'yellow'
     } = req.body;
 
     if (!topicOrTitle) {
@@ -51,7 +56,12 @@ export const projectController = {
       
       // 2. Call Gemini to write script & split scenes
       console.log(`[Project Controller] Generating script for topic: "${topicOrTitle}"`);
-      const scriptResult = await geminiService.generateScriptAndScenes(topicOrTitle, language, sceneCount);
+      const scriptResult = await geminiService.generateScriptAndScenes(topicOrTitle, language, sceneCount, {
+        platform,
+        niche,
+        hookStyle,
+        tone
+      });
 
       // Map default voice if none provided
       const resolvedVoiceName = voiceName || (
@@ -75,6 +85,13 @@ export const projectController = {
         status: 'draft',
         progress: 0,
         stepStatus: 'Script and scene plan generated.',
+        platform,
+        subtitleColor,
+        platformSettings: {
+          niche,
+          hookStyle,
+          tone
+        },
         metadata: {
           title: scriptResult.title,
           description: scriptResult.description,
@@ -208,52 +225,15 @@ export const projectController = {
     res.json({
       hasGeminiKey: !!env.GEMINI_API_KEY && env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY_HERE',
       hasPexelsKey: !!env.PEXELS_API_KEY && env.PEXELS_API_KEY !== 'YOUR_PEXELS_API_KEY_HERE',
-      hasPixabayKey: !!env.PIXABAY_API_KEY,
-      env: {
-        GEMINI_API_KEY: env.GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE' ? '' : env.GEMINI_API_KEY,
-        PEXELS_API_KEY: env.PEXELS_API_KEY === 'YOUR_PEXELS_API_KEY_HERE' ? '' : env.PEXELS_API_KEY,
-        PIXABAY_API_KEY: env.PIXABAY_API_KEY || ''
-      }
+      hasPixabayKey: !!env.PIXABAY_API_KEY
     });
   },
 
-  // Update Env Configuration Status (Write keys back to .env file)
+  // Update Env Configuration Status (Write keys back to .env file) - DISABLED FOR SECURITY
   async saveSettings(req, res) {
-    const { GEMINI_API_KEY, PEXELS_API_KEY, PIXABAY_API_KEY } = req.body;
-    
-    try {
-      const envPath = path.join(env.paths.root, '.env');
-      let envContent = '';
-
-      if (fs.existsSync(envPath)) {
-        envContent = fs.readFileSync(envPath, 'utf-8');
-      }
-
-      const updateKey = (content, key, value) => {
-        const regex = new RegExp(`^${key}=.*$`, 'm');
-        if (regex.test(content)) {
-          return content.replace(regex, `${key}=${value || ''}`);
-        } else {
-          return content + `\n${key}=${value || ''}`;
-        }
-      };
-
-      envContent = updateKey(envContent, 'GEMINI_API_KEY', GEMINI_API_KEY);
-      envContent = updateKey(envContent, 'PEXELS_API_KEY', PEXELS_API_KEY);
-      envContent = updateKey(envContent, 'PIXABAY_API_KEY', PIXABAY_API_KEY);
-
-      fs.writeFileSync(envPath, envContent.trim() + '\n', 'utf-8');
-
-      // Update runtime env configurations
-      env.GEMINI_API_KEY = GEMINI_API_KEY;
-      env.PEXELS_API_KEY = PEXELS_API_KEY;
-      env.PIXABAY_API_KEY = PIXABAY_API_KEY;
-
-      res.json({ success: true, message: 'Settings saved successfully' });
-    } catch (error) {
-      console.error('[Project Controller] Failed to save settings:', error);
-      res.status(500).json({ error: `Failed to save settings: ${error.message}` });
-    }
+    res.status(403).json({ 
+      error: 'API key modification via UI settings is disabled for security. Please configure them in the .env file directly.' 
+    });
   },
 
   // Reorder project scenes

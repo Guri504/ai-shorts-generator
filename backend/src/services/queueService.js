@@ -446,7 +446,7 @@ export const queueService = {
           return;
         }
 
-        subtitleService.writeAssFile(scene.wordTimings, assPath);
+        subtitleService.writeAssFile(scene.wordTimings, assPath, project.subtitleColor);
         await ffmpegService.compileScene(scene.videoPath, scene.voiceAudioPath, assPath, renderedScenePath, scene.duration);
         compiledScenePaths[index] = renderedScenePath;
       };
@@ -564,7 +564,7 @@ export const queueService = {
     // C. Subtitles
     await updateProgress(65, 'subtitles', `Re-compiling subtitles for Scene ${sceneNumber}...`);
     const assPath = path.join(projectDir, `scene_${sceneNumber}_subs.ass`);
-    subtitleService.writeAssFile(scene.wordTimings, assPath);
+    subtitleService.writeAssFile(scene.wordTimings, assPath, project.subtitleColor);
 
     // D. Re-compile only this scene
     await updateProgress(75, 'scene_rendering', `Re-rendering Scene ${sceneNumber} file...`);
@@ -595,7 +595,7 @@ export const queueService = {
         compileTasks.push(async () => {
           const neighboringScene = renderScenes[i - 1];
           const neighborAss = path.join(projectDir, `scene_${i}_subs.ass`);
-          subtitleService.writeAssFile(neighborScene.wordTimings, neighborAss);
+          subtitleService.writeAssFile(neighborScene.wordTimings, neighborAss, project.subtitleColor);
           
           // Ensure raw visual and audio exist for CTA or other scene
           if (!neighboringScene.videoPath || !fs.existsSync(neighboringScene.videoPath)) {
@@ -775,7 +775,7 @@ export const queueService = {
           }
         }
 
-        subtitleService.writeAssFile(scene.wordTimings, assPath);
+        subtitleService.writeAssFile(scene.wordTimings, assPath, project.subtitleColor);
         await ffmpegService.compileScene(scene.videoPath, scene.voiceAudioPath, assPath, renderedScenePath, scene.duration);
         compiledScenePaths[index] = renderedScenePath;
       };

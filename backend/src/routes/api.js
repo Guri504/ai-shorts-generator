@@ -9,6 +9,8 @@ import { verifyToken } from '../middlewares/authMiddleware.js';
 import { verifyProjectOwnership } from '../middlewares/ownershipMiddleware.js';
 import { youtubeService } from '../services/youtubeService.js';
 import YouTubeAccount from '../models/YouTubeAccount.js';
+import { linkedinService } from '../services/linkedinService.js';
+import LinkedInAccount from '../models/LinkedInAccount.js';
 import multer from 'multer';
 import { storageHelper } from '../utils/storageHelper.js';
 import path from 'path';
@@ -121,6 +123,50 @@ router.get('/youtube/accounts', verifyToken, async (req, res) => {
   try {
     const accounts = await YouTubeAccount.find({ userId: req.user._id })
       .select('email channelName channelId createdAt')
+      .lean();
+    res.json(accounts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// -------------------------------------------------------------
+// LinkedIn Connection Endpoints
+// -------------------------------------------------------------
+router.get('/linkedin/auth', verifyToken, (req, res) => {
+  const url = linkedinService.getAuthUrl(req.user._id);
+  res.json({ url });
+});
+
+// OAuth Callback Route
+router.get('/linkedin/callback', async (req, res) => {
+  const { code, state: userId } = req.query;
+  if (!code || !userId) {
+    return res.status(400).send('<h3>Authentication failed: missing arguments.</h3>');
+  }
+  try {
+    await linkedinService.handleCallback(code, userId);
+    res.send(`
+      <html>
+        <body style="font-family: sans-serif; background-color: #121214; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;">
+          <h2 style="color: #3b82f6;">LinkedIn Account Connected Successfully!</h2>
+          <p>You can now close this tab and return to the dashboard.</p>
+          <script>
+            setTimeout(() => { window.close(); }, 3000);
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    res.status(500).send(`<h3>Error connecting LinkedIn account: ${err.message}</h3>`);
+  }
+});
+
+// List connected LinkedIn accounts
+router.get('/linkedin/accounts', verifyToken, async (req, res) => {
+  try {
+    const accounts = await LinkedInAccount.find({ userId: req.user._id })
+      .select('email profileName linkedinId createdAt')
       .lean();
     res.json(accounts);
   } catch (error) {

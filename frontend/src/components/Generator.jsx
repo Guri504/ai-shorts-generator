@@ -94,7 +94,7 @@ export default function Generator() {
           <div>
             <h4 className="font-extrabold mb-0.5">Gemini API Key Missing</h4>
             <p className="text-slate-600 text-xs leading-relaxed">
-              You must configure a Gemini API key in the <span className="underline font-bold cursor-pointer text-violet-600 hover:text-violet-750" onClick={() => useAppStore.getState().setActiveTab('settings')}>Settings</span> tab before you can generate scripts.
+              You must configure a Gemini API key in the <span className="underline font-bold cursor-pointer text-violet-600 hover:text-violet-750" onClick={() => useAppStore.getState().setActiveTab('social-media')}>Social Media</span> status panel before you can generate scripts.
             </p>
           </div>
         </div>
